@@ -1,0 +1,917 @@
+# **초능력 오셀로 프로젝트 코드 변경 사항 인수인계서**
+
+공동작업자 공유용 | 원본 소스와 리팩터링된 소스 비교
+
+## **1. 전체 변경 사항 요약**
+
+이번 작업에서 가장 크게 변경한 것은 **게임 데이터를 보관하는 코드와 게임 규칙을 실행하는 코드를 분리한 것**이야.
+
+기존에는 `Board` 객체가 게임판 데이터와 착수 알고리즘을 함께 가지고 있었고, `GameState`가 전체 게임 데이터를 관리했어. 현재는 데이터를 `Data`에 모으고, 계산과 상태 변경을 `BoardLogic`, `ScoreLogic`, `GameLogic` 등의 클래스로 나눴어.
+
+또한 기존 `Position` 구조체를 좌표 튜플로 바꾸고, `GameController`와 UI가 새 자료형을 사용하도록 변경했어.
+
+### **변경 전후 핵심 비교**
+
+| 구분         | 기존 코드                           | 현재 코드                         |
+| ---------- | ------------------------------- | ----------------------------- |
+| 전체 게임 데이터  | `GameState` 클래스                 | `Data` 클래스                    |
+| 돌 색상       | `Stone`                         | `IsOnStone`                   |
+| 좌표         | `Position`                      | `(int Row, int Col)`          |
+| 게임판 데이터    | `Board` 클래스                     | `Board` 구조체                   |
+| 착수 및 뒤집기   | `Board`의 메서드                    | `BoardLogic`                  |
+| 칸 상태 판단    | `Cell`, `StatusEffects`         | `CellStateLogic`              |
+| 카드 관련 칸 상태 | `Cell` 안에 직접 저장                 | `CardData`의 확장 데이터            |
+| 점수 계산      | `ScoreRule`                     | `ScoreLogic`                  |
+| 턴·패스·종료 규칙 | 주로 `GameController`             | `GameLogic`과 `GameController` |
+| 플레이어 설정    | `GameAction.cs` 안의 `PlayerSlot` | `Model/PlayerSlot.cs`         |
+| CPU 알고리즘   | `CPUPlayer`                     | 알고리즘 유지, 새 API 사용             |
+| 화면 표시      | `BoardControl`, `GameForm`      | 구성 유지, 새 자료형 사용               |
+
+**중요:** 모든 기능을 새로 만든 건 아니야. 착수 계산, 카드 효과, CPU의 위치 선택 알고리즘처럼 기존 기능을 유지하면서 코드의 위치나 호출 방식만 바꾼 부분이 많아.
+
+### **현재 프로젝트 구조**
+
+**Othello.Core**
+
+**Model**
+
+Data.cs, CardData.cs, PlayerSlot.cs
+
+게임판·점수·손패·상태 등 데이터를 저장
+
+**Logic**
+
+BoardLogic, CellStateLogic, CardCellStateLogic, GameStateLogic, CardGameStateLogic, ScoreLogic, GameLogic
+
+착수, 뒤집기, 상태 변화, 점수, 턴 규칙을 처리
+
+**Cards**
+
+ISkillCard, Hand, CardDeck, Effects/SampleCards
+
+카드 종류, 카드 효과, 손패와 덱 관리
+
+**Control**
+
+GameController.cs, GameAction.cs
+
+카드 사용부터 착수·턴 종료까지 실행 순서를 조정
+
+**Cpu**
+
+CPUPlayer.cs, WeightTables.cs
+
+CPU 행동 선택과 위치 가중치
+
+**SuperOthello**
+
+`BoardControl.cs`, `GameForm.cs`, `Program.cs`
+
+WinForms 화면과 사용자 입력
+
+**Othello.Tests**
+
+`CoreTests.cs` : 핵심 게임 규칙 검사
+
+여기서 폴더 구조는 분석한 소스의 논리적 배치를 나타내. 실제 Visual Studio 솔루션에서 파일이 어떤 폴더에 포함되어 있는지는 각 프로젝트를 기준으로 확인하면 돼.
+
+## **2. 파일별 변경 사항**
+
+### **기존 Model 및 Rules 계열**
+
+| 이전 파일                     | 현재 파일                                                         | 변경된 내용                                                 |
+| ------------------------- | ------------------------------------------------------------- | ------------------------------------------------------ |
+| `Stone.cs`                | `Data.cs`, `GameLogic.cs`, `ScoreLogic.cs`                    | `Stone`을 `IsOnStone`으로 교체. 상대 색 계산과 인덱스 계산을 별도 메서드로 이동 |
+| `Position.cs`             | 여러 파일                                                         | `Position`을 좌표 튜플로 교체                                  |
+| `Cell.cs`                 | `Data.cs`, `CardData.cs`                                      | 돌 색상과 카드 상태 데이터 분리                                     |
+| `Board.cs`                | `Data.cs`, `BoardLogic.cs`                                    | 게임판 데이터와 오셀로 알고리즘 분리                                   |
+| `GameState.cs`            | `Data.cs`, `CardData.cs`, `GameLogic.cs`, `GameController.cs` | 게임 데이터, 초기화, 복제, 진행 규칙을 각각 분리                          |
+| `ScoreRule.cs`            | `ScoreLogic.cs`                                               | 점수 계산 이동. 방패 여부를 인수로 받도록 변경                            |
+| `StatusEffects.cs`        | `CellStateLogic.cs`, `CardCellStateLogic.cs`                  | 일반 판정과 카드 상태 규칙 분리                                     |
+| 기존 `GameController.cs` 일부 | `GameLogic.cs`, `CardGameStateLogic.cs`                       | 턴 변경, 종료 판정, 일시적 상태 해제 로직 이동                           |
+
+### **기존 Cards, Control, Cpu 계열**
+
+| 이전 파일               | 현재 파일                          | 변경된 내용                                          |
+| ------------------- | ------------------------------ | ----------------------------------------------- |
+| `ISkillCard.cs`     | `Cards/ISkillCard.cs`          | `GameState`, `Stone`, `Position` 인수를 새 자료형으로 교체 |
+| `SampleCards.cs`    | `Cards/Effects/SampleCards.cs` | 카드 5종 유지. 효과 적용 시 새 Logic 메서드 사용                |
+| `CardDeck.cs`       | `Cards/CardDeck.cs`            | 주요 기능 유지, 주석과 사용 안내 정리                          |
+| `Hand.cs`           | `Cards/Hand.cs`                | 주요 기능 유지                                        |
+| `GameAction.cs`     | `Control/GameAction.cs`        | 행동 좌표를 튜플로 변경                                   |
+| `GameAction.cs` 일부  | `Model/PlayerSlot.cs`          | `Difficulty`, `PlayerSlot`을 독립 파일로 이동           |
+| `GameController.cs` | `Control/GameController.cs`    | `State`를 `Data`로 변경하고 각 Logic 클래스 호출            |
+| `CPUPlayer.cs`      | `Cpu/CPUPlayer.cs`             | 기존 선택 알고리즘 유지, `Data`와 `BoardLogic` 사용          |
+| `WeightTables.cs`   | `Cpu/WeightTables.cs`          | `Board`의 자료구조 변경에 맞춰 게임 단계 계산 수정                |
+
+### **기존 UI 계열**
+
+| 이전 파일                           | 현재 파일                     | 변경된 내용                                                   |
+| ------------------------------- | ------------------------- | -------------------------------------------------------- |
+| `BoardControl.cs`               | `UI/BoardControl.cs`      | `Board`, 좌표 튜플, `CellStateLogic` 사용                      |
+| `GameForm.cs`                   | `UI/GameForm.cs`          | `controller.Data`, 새 자료형과 Logic 호출                       |
+| `Program.cs`                    | `SuperOthello/Program.cs` | `PlayerSlot` 이동에 따른 네임스페이스 참조 변경                         |
+| `Form1.cs`, `Form1.Designer.cs` | 직접 대응 파일 없음               | 기존에 있던 기본 WinForms 폼. 이번 리팩터링에서 기능이 별도 파일로 이전되었다는 근거는 없음 |
+
+`Form1`**에 대해 한 가지 구분할 점:** 현재 분석 가능한 리팩터링 결과 폴더에는 `Form1`이 없지만, 실제 프로젝트에서 삭제되었는지는 확인되지 않았어. 단순히 현재 소스 목록에 없다고 해서 삭제 완료라고 판단하면 안 돼.
+
+## **3. 클래스와 메서드 변경 사항**
+
+이 부분은 공동작업자가 기존 코드를 현재 프로젝트에 맞게 수정할 때 가장 많이 참고하게 될 내용이야.
+
+### **3-1. Stone과 Position 변경**
+
+기존에는 돌 색상과 좌표를 각각 `Stone`, `Position`으로 표현했어.
+
+```
+// 기존
+Stone player = Stone.Black;
+Position position = new Position(2, 3);
+
+Stone opponent = player.Opponent();
+int index = player.Index();
+```
+
+현재는 `IsOnStone`과 좌표 튜플을 사용해.
+
+```
+// 현재
+IsOnStone player = IsOnStone.Black;
+(int Row, int Col) position = (2, 3);
+
+IsOnStone opponent = GameLogic.Opponent(player);
+int index = ScoreLogic.PlayerIndex(player);
+```
+
+기존 `StoneExtensions`에 있던 메서드들도 변경되었어.
+
+| 기존                 | 현재                                  |
+| ------------------ | ----------------------------------- |
+| `Stone.Black`      | `IsOnStone.Black`                   |
+| `Stone.White`      | `IsOnStone.White`                   |
+| `Stone.Empty`      | `IsOnStone.Empty`                   |
+| `stone.Opponent()` | `GameLogic.Opponent(stone)`         |
+| `stone.Index()`    | `ScoreLogic.PlayerIndex(stone)`     |
+| `stone.ToKorean()` | `GameForm.StoneName(stone)` 등 별도 표현 |
+
+`ToKorean()`에 해당하는 공용 확장 메서드는 현재 소스에 없어. `GameForm`에서는 `StoneName()`이라는 자체 메서드를 사용하고 있어.
+
+참고로 기존에 공동작업자가 `PositionProcess`, `IsOnStoneProcess`라는 이름을 사용했다면, 이것들도 현재의 `Position`, `Stone`이 아니라 **튜플과&#x20;**`IsOnStone`**으로 변경**해야 해.
+
+### **3-2. Board 변경**
+
+기존 `Board`는 게임판 데이터를 저장하면서 오셀로 알고리즘도 직접 실행했어.
+
+```
+// 기존
+var state = GameState.NewGame(CardPool.Current());
+
+var moves = state.Board.GetValidMoves(state.Current);
+var flips = state.Board.Place(2, 3, state.Current);
+int empty = state.Board.EmptyCount;
+```
+
+현재 `Board`는 데이터를 보관하고, `BoardLogic`이 알고리즘을 실행해.
+
+```
+// 현재
+var data = new Data();
+GameLogic.Reset(data);
+
+var moves = BoardLogic.GetValidMoves(data, data.Current);
+var flips = BoardLogic.Place(data, 2, 3, data.Current);
+int empty = BoardLogic.EmptyCount(data);
+```
+
+기존과 현재 메서드를 비교하면 다음과 같아.
+
+| 기존 `Board` 메서드                | 현재 `BoardLogic` 메서드                      |
+| ----------------------------- | ---------------------------------------- |
+| `board.Reset()`               | `BoardLogic.Reset(data)`                 |
+| `board.GetFlips(r, c, stone)` | `BoardLogic.GetFlips(data, r, c, stone)` |
+| `board.GetValidMoves(stone)`  | `BoardLogic.GetValidMoves(data, stone)`  |
+| `board.HasValidMove(stone)`   | `BoardLogic.HasValidMove(data, stone)`   |
+| `board.Place(r, c, stone)`    | `BoardLogic.Place(data, r, c, stone)`    |
+| `board.PutStone(r, c, stone)` | `BoardLogic.PutStone(data, r, c, stone)` |
+| `board.Count(stone)`          | `BoardLogic.Count(data, stone)`          |
+| `board.EmptyCount`            | `BoardLogic.EmptyCount(data)`            |
+| `board.IsFull`                | `BoardLogic.IsFull(data)`                |
+| `Board.InBounds(r, c)`        | `BoardLogic.InBounds(r, c)`              |
+
+기존 `Board`에는 좌표 인덱서도 있었어.
+
+```
+// 기존
+state.Board[3, 3].Color = Stone.Black;
+```
+
+지금은 다음처럼 접근해야 해.
+
+```
+// 현재
+data.Board.Cells[3, 3].Stone = IsOnStone.Black;
+```
+
+**공동작업자가 알아야 할 점:** 오셀로 계산 코드를 수정할 때는 `Data.cs`가 아니라 `BoardLogic.cs`를 수정해야 해.
+
+### **3-3. Cell과 StatusEffects 변경**
+
+기존 `Cell`의 구성은 다음과 같았어.
+
+```
+public struct Cell
+{
+    public Stone Color;
+    public CellState State;
+    public byte SealTurns;
+
+    public readonly bool IsEmpty => Color == Stone.Empty;
+    public readonly bool Has(CellState flag)
+        => (State & flag) == flag;
+}
+```
+
+현재 `Cell`은 `Data.cs`와 `CardData.cs`에 나뉘어 있어.
+
+```
+// Data.cs
+public partial struct Cell
+{
+    public IsOnStone Stone;
+    internal CardCellFields CardFields;
+}
+```
+
+```
+// CardData.cs
+internal struct CardCellFields
+{
+    public CellState CellFlags;
+    public byte SealTurns;
+}
+```
+
+카드 상태의 접근 방법도 바뀌었어.
+
+```
+// 기존
+bool fixedStone = cell.Has(CellState.Fixed);
+bool empty = cell.IsEmpty;
+```
+
+```
+// 현재
+bool fixedStone = CellStateLogic.Has(cell, CellState.Fixed);
+bool empty = cell.Stone == IsOnStone.Empty;
+```
+
+기존 `StatusEffects`가 담당하던 규칙은 다음과 같이 이동했어.
+
+| 기존 `StatusEffects`      | 현재                                                               |
+| ----------------------- | ---------------------------------------------------------------- |
+| `CanPlace(cell)`        | `CellStateLogic.CanPlace(cell)`                                  |
+| `CanFlip(cell)`         | `CellStateLogic.CanFlip(cell)`                                   |
+| `CanRemove(cell)`       | `CellStateLogic.CanRemove(cell)`                                 |
+| `ProcessTurnEnd(cells)` | `CellStateLogic.ProcessTurnEnd(cells)` 또는 `ProcessTurnEnd(data)` |
+
+현재 `CellStateLogic`은 두 파일로 구현되어 있어.
+
+- `CellStateLogic.cs`: 기본 착수·뒤집기·제거 가능 여부, 플래그 추가·제거
+- `CardCellStateLogic.cs`: 봉인된 칸 착수 금지, 고정 돌 뒤집기 금지, 봉인 시간 감소
+
+고정과 봉인 효과는 기존과 동일하게 유지되어 있어.
+
+### **3-4. GameState와 GameController 변경**
+
+가장 중요한 변경은 **기존&#x20;**`GameState`**&#x20;클래스가 현재&#x20;**`Data`**&#x20;클래스로 대체되었다는 것**이야.
+
+```
+// 기존
+GameState state = controller.State;
+int blackScore = state.ScoreOf(Stone.Black);
+```
+
+```
+// 현재
+Data data = controller.Data;
+int blackScore = data.Scores[0];
+```
+
+현재 `GameState`라는 이름이 완전히 사라진 건 아니야. `CardData.cs`에서 게임판 전체 효과를 나타내는 **enum**으로 사용되고 있어.
+
+```
+[Flags]
+public enum GameState
+{
+    None = 0
+}
+```
+
+즉, 현재 `GameState`는 이전처럼 점수와 게임판을 보관하는 클래스가 아니야. 이 둘을 혼동하면 컴파일 오류가 발생할 수 있어.
+
+`GameController`에서는 다음 변경이 이루어졌어.
+
+| 이전                               | 현재                                     |
+| -------------------------------- | -------------------------------------- |
+| `controller.State`               | `controller.Data`                      |
+| `GameState.NewGame(...)`         | `GameController` 생성자에서 `Data` 생성 및 초기화 |
+| `controller.ValidMoves()`        | 그대로 사용 가능                              |
+| `controller.TryExecuteTurn(...)` | 그대로 사용 가능                              |
+| `controller.Start()`             | 그대로 사용 가능                              |
+| `controller.SlotOf(stone)`       | 인수형만 `IsOnStone`으로 변경                  |
+| `controller.LastMove`            | `Position?`에서 좌표 튜플 nullable로 변경       |
+| `GameOver` 이벤트                   | 전달형이 `Stone`에서 `IsOnStone`으로 변경        |
+
+현재는 카드 없이 일반 착수나 패스를 실행하는 편의 메서드도 제공해.
+
+```
+controller.TryPlace(2, 3, out string error);
+controller.TryPass(out string error);
+```
+
+다만 카드 사용까지 처리하려면 기존과 마찬가지로 `TryExecuteTurn()`을 사용해야 해.
+
+### **3-5. ScoreRule 변경**
+
+기존 점수 계산은 `ScoreRule`에 있었어.
+
+```
+// 기존
+ScoreRule.OnPlace(state, Stone.Black, 3);
+```
+
+현재는 `ScoreLogic`이야.
+
+```
+// 현재
+ScoreLogic.OnPlace(data, IsOnStone.Black, 3);
+```
+
+주요 메서드 이름 자체는 유지했어.
+
+| 기존                            | 현재                             |
+| ----------------------------- | ------------------------------ |
+| `ScoreRule.OnPlace()`         | `ScoreLogic.OnPlace()`         |
+| `ScoreRule.OnCard()`          | `ScoreLogic.OnCard()`          |
+| `ScoreRule.ApplyFinalBonus()` | `ScoreLogic.ApplyFinalBonus()` |
+| `ScoreRule.Winner()`          | `ScoreLogic.Winner()`          |
+
+다만 **방패 상태 처리 방식은 실제로 변경되었어.**
+
+기존 `ScoreRule.OnPlace()`는 게임 상태에서 상대의 방패 여부를 직접 확인했어.
+
+현재 `ScoreLogic.OnPlace()`는 `opponentShielded`라는 `bool` 인수를 받아.
+
+```
+bool shielded = GameStateLogic.IsShielded(
+    data, GameLogic.Opponent(data.Current));
+
+ScoreLogic.OnPlace(data, data.Current, flippedCount, shielded);
+```
+
+`GameController`는 이 방식을 적용하고 있어. 하지만 다른 코드에서 `ScoreLogic.OnPlace(data, player, count)`만 호출하면 방패 여부를 자동으로 확인하지 않아.
+
+따라서 점수 계산 로직을 새로 작성할 때 주의해야 해.
+
+### **3-6. PlayerSlot과 GameAction 변경**
+
+기존 `GameAction.cs`에는 행동 정보뿐 아니라 `Difficulty`, `PlayerSlot`까지 함께 있었어.
+
+현재는 다음처럼 분리했어.
+
+- `Control/GameAction.cs`: 행동 정보
+- `Model/PlayerSlot.cs`: 사람·CPU 설정과 난이도
+
+따라서 다음 네임스페이스를 사용해야 해.
+
+```
+using Othello.Core.Control;
+using Othello.Core.Model;
+```
+
+이전 `Program.cs`에서 발생했던 `PlayerSlot`, `Difficulty`를 찾지 못하는 오류도 이 변경 때문이야.
+
+`GameAction`의 좌표 타입 역시 변경되었어.
+
+```
+// 기존
+GameAction.Place(new Position(2, 3));
+```
+
+```
+// 현재
+GameAction.Place(2, 3);
+
+// 튜플을 전달해도 됨
+GameAction.Place((2, 3));
+```
+
+카드 사용도 다음 형식이야.
+
+```
+var action = GameAction.WithCard(
+    selectedCard,
+    (3, 3),  // 카드 대상
+    (2, 3)   // 착수 위치
+);
+```
+
+카드 대상이나 착수 위치가 필요 없다면 `null`을 전달할 수 있어.
+
+### **3-7. ISkillCard 변경**
+
+기존 카드 인터페이스는 `GameState`, `Stone`, `Position`을 사용했어.
+
+```
+// 기존
+bool CanUse(GameState s, Stone user);
+
+IReadOnlyList<Position> GetTargets(
+    GameState s, Stone user);
+
+string Apply(
+    GameState s, Stone user, Position? target);
+```
+
+현재는 다음과 같아.
+
+```
+// 현재
+bool CanUse(Data data, IsOnStone user);
+
+IReadOnlyList<(int Row, int Col)> GetTargets(
+    Data data, IsOnStone user);
+
+string Apply(
+    Data data, IsOnStone user,
+    (int Row, int Col)? target);
+```
+
+새 카드를 만들 때 기존 `SkillCardBase`를 상속하는 방식은 그대로 사용할 수 있어.
+
+하지만 반환형과 매개변수형이 변경되었으므로 기존 카드 소스를 그대로 복사하면 컴파일 오류가 발생해.
+
+### **3-8. CPU와 UI 변경**
+
+CPU의 행동 선택 호출은 다음과 같이 바뀌었어.
+
+```
+// 기존
+GameAction action = cpu.ChooseAction(state.Clone());
+```
+
+```
+// 현재
+GameAction action = cpu.ChooseAction(data.Clone());
+```
+
+`CPUPlayer`는 내부적으로 `BoardLogic.GetValidMoves()`와 `BoardLogic.GetFlips()`를 사용하도록 수정했어.
+
+UI에서는 다음 변경이 핵심이야.
+
+```
+// 기존
+boardView.Render(
+    controller.State.Board,
+    hints,
+    targets,
+    controller.LastMove);
+```
+
+```
+// 현재
+boardView.Render(
+    controller.Data.Board,
+    hints,
+    targets,
+    controller.LastMove);
+```
+
+`BoardControl.CellClicked` 이벤트 역시 `Position`이 아닌 좌표 튜플을 전달해.
+
+```
+boardView.CellClicked += p =>
+{
+    controller.TryPlace(p.Row, p.Col, out _);
+};
+```
+
+이 예시는 일반 착수만 처리하는 간단한 연결 방식이야. 실제 `GameForm`에는 카드 대상 선택 과정까지 포함된 `OnCellClicked()`가 구현되어 있으므로, 그 메서드를 유지하는 게 맞아.
+
+## **4. 기존 기능이 현재 어떻게 처리되는가?**
+
+| 기능       | 기존 처리                            | 현재 처리                                              | 동작 차이                    |
+| -------- | -------------------------------- | -------------------------------------------------- | ------------------------ |
+| 게임 시작    | `GameState.NewGame()`            | `GameController` 생성자, `GameLogic.Reset()`          | 시작 돌 4개와 양측 카드 1장 지급 유지  |
+| 착수 가능 위치 | `Board.GetValidMoves()`          | `BoardLogic.GetValidMoves()`                       | 기본 계산 방식 유지              |
+| 돌 놓기·뒤집기 | `Board.Place()`                  | `BoardLogic.Place()`                               | 기본 알고리즘 유지               |
+| 점수 계산    | `ScoreRule.OnPlace()`            | `ScoreLogic.OnPlace()`                             | 점수 공식 유지, 방패 여부 전달 방식 변경 |
+| 점수 2배    | `TurnScoreMultiplier`            | 동일한 필드                                             | 득점에만 2배 적용 유지            |
+| 고정 처리    | `StatusEffects.CanFlip()`        | `CellStateLogic.CanFlip()`                         | 고정 돌 제외 규칙 유지            |
+| 봉인 처리    | `StatusEffects.ProcessTurnEnd()` | `CellStateLogic.ProcessTurnEnd()`                  | 3턴 감소 방식 유지              |
+| 카드 사용    | `GameController.Apply()`         | `GameController.Apply()` 및 각 Logic 호출              | 카드 먼저 사용한 후 착수하는 순서 유지   |
+| 카드 획득    | `GameController.DrawCard()`      | 동일한 이름의 메서드                                        | 3개 이상 뒤집으면 1장 획득 유지      |
+| 턴 변경     | `GameController.EndTurn()`       | `GameController.EndTurn()` → `GameLogic.EndTurn()` | 처리 역할 분리                 |
+| CPU 착수   | `CPUPlayer.ChooseAction()`       | 같은 메서드, `Data` 인수 사용                               | 가중치 기반 선택 유지             |
+| 게임 종료    | `GameController.Finish()`        | `GameController.Finish()` → `GameLogic.Finish()`   | 돌 보너스 및 승패 규칙 유지         |
+
+### **실제 한 턴의 처리 순서**
+
+현재 `GameController.TryExecuteTurn()`의 실행 순서는 다음과 같아.
+
+\#chatgpt-mermaid-\_r_sl\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_sl\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_sl\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_sl\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_sl\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_sl\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_sl\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_sl\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_sl\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_sl\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_sl\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_sl\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_sl\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_sl\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_sl\_ p{margin:0;}#chatgpt-mermaid-\_r_sl\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_sl\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_sl\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_sl\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_sl\_ .label text,#chatgpt-mermaid-\_r_sl\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_sl\_ .node rect,#chatgpt-mermaid-\_r_sl\_ .node circle,#chatgpt-mermaid-\_r_sl\_ .node ellipse,#chatgpt-mermaid-\_r_sl\_ .node polygon,#chatgpt-mermaid-\_r_sl\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_sl\_ .rough-node .label text,#chatgpt-mermaid-\_r_sl\_ .node .label text,#chatgpt-mermaid-\_r_sl\_ .image-shape .label,#chatgpt-mermaid-\_r_sl\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_sl\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_sl\_ .rough-node .label,#chatgpt-mermaid-\_r_sl\_ .node .label,#chatgpt-mermaid-\_r_sl\_ .image-shape .label,#chatgpt-mermaid-\_r_sl\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_sl\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_sl\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_sl\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_sl\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_sl\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_sl\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_sl\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_sl\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_sl\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_sl\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_sl\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_sl\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_sl\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_sl\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_sl\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_sl\_ .icon-shape,#chatgpt-mermaid-\_r_sl\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_sl\_ .icon-shape p,#chatgpt-mermaid-\_r_sl\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_sl\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_sl\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_sl\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_sl\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_sl\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_sl\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_sl\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_sl\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_sl\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_sl\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_sl\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_sl\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_sl\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_sl\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_sl\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_sl\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_sl\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_sl\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_sl\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_sl\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_sl\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_sl\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_sl\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_sl\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_sl\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_sl\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_sl\_ .node rect,#chatgpt-mermaid-\_r_sl\_ .node circle,#chatgpt-mermaid-\_r_sl\_ .node ellipse,#chatgpt-mermaid-\_r_sl\_ .node polygon,#chatgpt-mermaid-\_r_sl\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_sl\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_sl\_ .mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_sl\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_sl\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_sl\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}GameAction 입력Data.Clone()복제본에 행동 적용하여 검증검증 성공?오류 반환실제 Data에 행동 적용선택된 카드 사용착수 또는 패스점수 계산과 카드 획득봉인·침묵·방패 상태 갱신턴 교체종료 조건?종료 보너스 및 승패자동 패스 확인화면 갱신 이벤트아니요예예아니요
+
+기존 코드도 복제본에서 행동을 검증한 후 원본에 적용했어.
+
+**현재 바뀐 건 검증 방식 자체보다는, 처리 과정에서 호출하는 클래스들이야.**
+
+## **5. Data.cs와 CardData.cs 변경 사항**
+
+이번 수정에서 공동작업자가 가장 주의해야 할 부분이야.
+
+### **5-1. 현재 데이터 저장 위치**
+
+| 데이터         | 저장 위치                      |
+| ----------- | -------------------------- |
+| 8×8 게임판     | `data.Board.Cells`         |
+| 각 칸의 돌 색상   | `Cell.Stone`               |
+| 고정·봉인 상태    | `Cell.CellFlags`           |
+| 봉인 남은 시간    | `Cell.SealTurns`           |
+| 게임 전체 상태    | `data.Board.GameFlags`     |
+| 현재 플레이어     | `data.Current`             |
+| 점수          | `data.Scores`              |
+| 턴 번호        | `data.TurnNumber`          |
+| 연속 패스       | `data.ConsecutivePasses`   |
+| 게임 종료 여부    | `data.IsOver`              |
+| 손패          | `data.Hands`               |
+| 덱           | `data.Deck`                |
+| 플레이어별 침묵·방패 | `data.Status`              |
+| 점수 배율       | `data.TurnScoreMultiplier` |
+
+### **5-2. CardCellFields와 CardBoardFields**
+
+이전에는 `Cell`에 `Color`, `State`, `SealTurns`가 직접 들어 있었어.
+
+현재는 실제 `Cell` 필드를 `Data.cs`에 모았고, 카드 관련 데이터는 `CardCellFields`라는 구조체 안에 저장해.
+
+```
+// Data.cs
+public partial struct Cell
+{
+    public IsOnStone Stone;
+    internal CardCellFields CardFields;
+}
+```
+
+```
+// CardData.cs
+internal struct CardCellFields
+{
+    public CellState CellFlags;
+    public byte SealTurns;
+}
+```
+
+외부 코드에서는 다음 속성을 통해 접근해.
+
+```
+public CellState CellFlags
+{
+    get => CardFields.CellFlags;
+    set => CardFields.CellFlags = value;
+}
+```
+
+따라서 `CellFlags` 값을 변경하면 내부적으로 `CardFields.CellFlags` 값이 변경돼.
+
+`Board.GameFlags` 역시 `CardBoardFields`에 저장하는 동일한 방식을 사용해.
+
+### **5-3. CS0282와 CS8618 수정**
+
+앞서 발생했던 컴파일러 경고는 다음과 같이 해결했어.
+
+**CS0282**
+
+- 이전: `partial struct Cell`의 실제 필드가 여러 파일에 분산
+- 현재: `Cell`의 직접 필드는 `Data.cs`에 모으고 `CardData.cs`에는 속성을 정의
+- `Board`도 같은 방식으로 변경
+
+**CS8618**
+
+- 이전: `Hands` 등을 별도 초기화 메서드에서 할당
+- 현재: 필드 선언 시 직접 초기화
+
+```
+public Hand[] Hands = { new Hand(), new Hand() };
+public CardDeck Deck = new CardDeck();
+public PlayerStatus[] Status = new PlayerStatus[2];
+```
+
+### **5-4. Clone 변경**
+
+기존에는 `GameState.Clone()`이 전체 데이터를 복제했어.
+
+현재는 `Data.Clone()`과 `CardData.cs`에 구현된 `CloneExtendedData()`가 담당해.
+
+복제하는 내용은 다음과 같아.
+
+- 게임판의 `Cell[,]` 배열
+- 흑백 점수 배열
+- 양측 손패 목록과 `Hand` 객체
+- 카드 덱의 목록
+- 양측 플레이어 상태 배열
+- 턴 번호, 현재 플레이어, 점수 배율 등 값 데이터
+
+다만 `ISkillCard` 카드 객체 자체는 복제하지 않고 공유해. 현재 카드들은 내부에 변경되는 상태를 저장하지 않는 구조라서 이 방식을 사용하고 있어.
+
+**주의:** `new Data()`는 빈 보드를 만들 뿐 중앙 돌 네 개를 배치하지 않아. 초기 오셀로 보드가 필요하면 `GameLogic.Reset(data)`를 호출해야 해. `GameController` 생성자는 이 초기화를 이미 수행하고 있어.
+
+## **6. 기존 코드를 현재 구조에 맞게 수정하는 방법**
+
+### **6-1. 네임스페이스 변경**
+
+기존 `Othello.Core.Rules`를 사용하는 파일이라면 현재는 다음을 사용해야 해.
+
+```
+using Othello.Core.Model;
+using Othello.Core.Logic;
+```
+
+다른 주요 네임스페이스는 다음과 같아.
+
+```
+using Othello.Core.Cards;
+using Othello.Core.Control;
+using Othello.Core.Cpu;
+```
+
+특히 `PlayerSlot`, `Difficulty`는 이제 `Othello.Core.Model`에 있으므로 `Program.cs`에서 해당 네임스페이스가 필요해.
+
+### **6-2. 자주 사용하는 코드 변환**
+
+**보드 초기화**
+
+```
+// 기존
+state.Board.Reset();
+```
+
+```
+// 현재
+BoardLogic.Reset(data);
+```
+
+**돌 개수 확인**
+
+```
+// 기존
+int blackCount = state.Board.Count(Stone.Black);
+```
+
+```
+// 현재
+int blackCount = BoardLogic.Count(data, IsOnStone.Black);
+```
+
+**칸 상태 설정**
+
+```
+// 기존
+state.Board[3, 4].State |= CellState.Fixed;
+```
+
+```
+// 현재
+CellStateLogic.Add(data, 3, 4, CellState.Fixed);
+```
+
+**침묵 적용**
+
+```
+// 기존
+state.StatusOf(Stone.White).Silenced = true;
+```
+
+```
+// 현재
+GameStateLogic.SetSilenced(data, IsOnStone.White, true);
+```
+
+직접 `data.StatusOf(IsOnStone.White).Silenced = true`라고 작성하는 것도 가능해. 다만 상태 규칙을 한곳에서 관리하려면 `GameStateLogic`을 사용하는 편이 일관적이야.
+
+**현재 플레이어 확인**
+
+```
+// 기존
+Stone current = controller.State.Current;
+```
+
+```
+// 현재
+IsOnStone current = controller.Data.Current;
+```
+
+## **7. 앞으로 기능을 개발할 때 수정할 파일**
+
+공동작업 시에는 이 표를 기준으로 담당 영역을 나누면 돼.
+
+| 작업 내용           | 주로 수정할 파일                                 | 함께 확인할 파일                                   |
+| --------------- | ----------------------------------------- | ------------------------------------------- |
+| 새로운 초능력 카드 추가   | `Cards/Effects/SampleCards.cs` 또는 새 카드 파일 | `ISkillCard.cs`, `CardPool`, `CoreTests.cs` |
+| 카드 효과용 데이터 추가   | `Model/CardData.cs`                       | 관련 Logic, 카드 구현, `Clone()`                  |
+| 고정·봉인 규칙 수정     | `Logic/CardCellStateLogic.cs`             | `CellStateLogic.cs`, `SampleCards.cs`       |
+| 착수·뒤집기 규칙 수정    | `Logic/BoardLogic.cs`                     | `CellStateLogic.cs`, `CoreTests.cs`         |
+| 점수 계산 수정        | `Logic/ScoreLogic.cs`                     | `GameController.cs`, 카드 구현                  |
+| 침묵·방패 규칙 수정     | `Logic/CardGameStateLogic.cs`             | `GameStateLogic.cs`, `GameController.cs`    |
+| 턴·패스·종료 수정      | `Logic/GameLogic.cs`                      | `GameController.cs`                         |
+| 카드 획득·버리기 규칙 수정 | `Control/GameController.cs`               | `Hand.cs`, `CardDeck.cs`, `GameForm.cs`     |
+| CPU 착수 전략 개선    | `Cpu/CPUPlayer.cs`                        | `WeightTables.cs`, `BoardLogic.cs`          |
+| 보드 그림 수정        | `UI/BoardControl.cs`                      | `GameForm.cs`                               |
+| 카드 선택 UI 변경     | `UI/GameForm.cs`                          | `GameController.cs`, `ISkillCard.cs`        |
+| 테스트 추가          | `Tests/CoreTests.cs`                      | 테스트 대상 Logic 또는 Controller                  |
+
+### **새 카드를 추가하는 경우**
+
+현재 구현된 카드와 동일한 형식으로 `SkillCardBase`를 상속한 클래스를 추가하면 돼.
+
+그리고 기본 덱에 포함하려면 `CardPool.Current()`도 수정해야 해.
+
+카드 효과 때문에 새로운 상태 데이터가 필요하다면 `CardData.cs`에 추가하고, 해당 상태가 착수나 뒤집기 규칙에 영향을 준다면 관련 Logic도 수정해야 해.
+
+즉, 새 카드 하나를 추가한다고 항상 파일 하나만 수정하는 것은 아니야.
+
+### **화면 개발을 담당하는 경우**
+
+기존 화면 구성은 대부분 유지했어.
+
+그러므로 화면 디자인만 수정한다면 `BoardControl.cs`, `GameForm.cs`를 중심으로 작업하면 돼.
+
+다만 게임 규칙을 화면 코드에 직접 추가하기보다는 `GameController` 또는 관련 Logic에 구현하고 UI에서 호출하는 게 현재 구조에 맞아.
+
+## **8. 공동작업 시 주의할 점**
+
+소스를 비교하면서 확인된 사항들이야. 여기에는 **이미 변경된 부분**뿐 아니라 **아직 구현되지 않았거나 추가 확인이 필요한 부분**도 포함했어.
+
+### **8-1. CPU 난이도는 아직 실제로 구분되지 않음**
+
+현재 `CPUPlayer`에는 `Difficulty.Easy`, `Normal`, `Hard` 설정이 있지만, `ChooseAction()`에서 난이도에 따라 다른 알고리즘을 실행하지는 않아.
+
+현재 CPU는 다음 순서로 행동을 선택해.
+
+1. 착수 가능한 칸 계산
+2. 위치 가중치가 가장 높은 칸 선택
+3. 가중치가 같으면 뒤집는 돌이 많은 칸 선택
+4. 둘 곳이 없으면 패스
+
+기존 임시 CPU 알고리즘을 유지한 것이고, 카드 사용이나 깊이 2 알파-베타 탐색은 아직 구현되지 않았어.
+
+### **8-2. 현재 카드 풀은 5종 10장**
+
+`CardPool.Current()`에는 다음 카드가 각각 2장씩 들어 있어.
+
+- 전향
+- 점수 2배
+- 고정
+- 봉인
+- 침묵
+
+최종 카드 12종을 모두 구현한 상태는 아니야.
+
+### **8-3. Clone과 무작위 덱 처리**
+
+`CardDeck.Clone()`에서는 다음 코드를 사용하고 있어.
+
+```
+public CardDeck Clone()
+    => new(new List<ISkillCard>(cards), new Random(rng.Next()));
+```
+
+여기서 `rng.Next()`는 복제할 때 **원본 덱의 난수 생성기 상태를 전진시켜**.
+
+이 방식은 원본 코드에도 있었고, 현재 코드에서도 유지되어 있어.
+
+따라서 게임판 데이터를 바꾸지 않더라도, CPU가 시뮬레이션을 많이 하거나 UI가 미리보기를 위해 `Clone()`을 호출하면 이후 카드 덱의 섞기 결과에 영향을 줄 수 있어.
+
+게임 규칙의 결정성을 높이려면 추후 수정할 필요가 있는 부분이야.
+
+### **8-4. 방패 점수 계산은 호출자가 상태를 전달해야 함**
+
+현재 `ScoreLogic.OnPlace()`의 기본 매개변수는 다음과 같아.
+
+```
+bool opponentShielded = false
+```
+
+그래서 호출자가 방패 여부를 전달하지 않으면 일반 감점으로 계산돼.
+
+`GameController`에서는 상태를 조회해서 전달하고 있지만, 다른 코드에서 직접 점수를 계산할 때는 주의해야 해.
+
+### **8-5. GameLogic.Reset()은 카드 덱 전체를 초기화하지 않음**
+
+`GameLogic.Reset(data)`는 게임판, 점수, 현재 차례, 턴 번호 등을 초기화하지만 `Hands`와 `Deck`을 새로 구성하지는 않아.
+
+새 게임 생성 시에는 `GameController` 생성자에서 덱을 만들고 초기 카드를 지급해.
+
+따라서 기존 `Data` 객체에 단순히 `GameLogic.Reset()`만 호출한다고 완전히 새로운 게임 상태가 만들어지는 것은 아니야.
+
+### **8-6. GameForm의 미완성 부분**
+
+현재 `GameForm.cs`에서 확인되는 미완성 항목은 다음과 같아.
+
+- CPU 행동이 실패했을 때 다른 일반 착수로 대체하는 처리
+- 게임 종료 시 별도 `ResultForm` 사용
+- 기권 이후 전적 처리
+
+이 부분들은 기존 UI 코드에서도 완성되지 않은 기능이었어.
+
+### **8-7. 실제 실행 검증은 별개**
+
+분석한 리팩터링 소스에는 `.csproj`, `.sln`이 포함되어 있지 않고, 현재 `Program.cs`의 최종 파일도 확인 가능한 리팩터링 폴더에는 없었어.
+
+이전에 공유된 `Program.cs` 수정 방향은 확인할 수 있지만, 공동작업자의 로컬 프로젝트에 정확히 반영되었는지는 여기서 검증할 수 없어.
+
+따라서 이번 비교는 **제공된 C# 소스 기준의 변경 분석**이며, 솔루션 전체 빌드 및 실행 검증을 완료했다는 의미는 아니야.
+
+## **9. 단위 테스트 변경 사항**
+
+현재 `CoreTests.cs`에는 MSTest 테스트 메서드가 13개 있어.
+
+| 테스트             | 검증 내용                      |
+| --------------- | -------------------------- |
+| `TC01`          | 보드 중앙에 돌 4개가 배치되는지         |
+| `TC02`          | 초기 흑의 착수 가능 위치가 4곳인지       |
+| `TC03`          | 고정된 돌이 뒤집히지 않는지            |
+| `TC03b`         | 봉인된 칸에 착수할 수 없는지           |
+| `TC05`          | 돌 3개 뒤집기 점수가 +3/-3인지       |
+| `TC05b`         | 점수 2배가 득점에만 적용되는지          |
+| `TC06`          | 종료 시 남은 돌 수만큼 점수를 받는지      |
+| `TC07`          | 전향 카드가 상대 돌을 바꾸고 2점을 차감하는지 |
+| `TC07b`         | 봉인이 3턴 뒤 해제되는지             |
+| `TC09`          | 손패를 최대 3장까지 보유할 수 있는지      |
+| `TC10`          | 사용한 카드가 덱으로 돌아가는지          |
+| `TC11`          | 복제본 변경이 원본 데이터에 영향을 주지 않는지 |
+| 이름 없는 TC 번호 테스트 | 잘못된 착수가 게임 상태를 변경하지 않는지    |
+
+현재 테스트 코드는 `Data`, `BoardLogic`, `CellStateLogic`, `ScoreLogic`, `GameController`를 사용하도록 변경되어 있어.
+
+다만 원본 테스트 파일은 현재 비교 가능한 최초 업로드 목록에 포함되어 있지 않아. 따라서 테스트별 원본 코드와의 정확한 줄 단위 비교는 여기서 확정하지 않았어.
+
+Visual Studio에서는 `Othello.Tests` 프로젝트를 `Othello.Core`에 프로젝트 참조로 연결한 뒤 테스트 탐색기에서 실행하면 돼.
+
+빌드 성공과 테스트 통과는 별개이며, 테스트 통과 여부 역시 실제 실행 결과로 확인해야 해.
+
+## **10. 공동작업자용 최종 요약**
+
+### **반드시 알아야 할 변경 사항**
+
+**첫째, 게임 데이터에 접근하는 방법이 변경되었어.**
+
+기존에는 `GameState`와 `Board` 객체를 중심으로 데이터를 다뤘지만, 현재는 `Data`가 중심이야.
+
+**둘째, 게임 규칙을 호출하는 방법이 변경되었어.**
+
+기존에는 `board.Place()`처럼 객체가 직접 처리하던 기능을 현재는 `BoardLogic.Place(data, ...)`처럼 호출해.
+
+**셋째, 카드 관련 상태는 별도로 확장되어 있어.**
+
+`CardData.cs`에서 상태 데이터를 정의하고 `CardCellStateLogic`, `CardGameStateLogic`에서 실제 규칙을 처리해.
+
+**넷째, 기존 UI의 레이아웃과 게임 진행 방식은 대부분 유지했어.**
+
+다만 새 자료형과 메서드에 맞게 호출 방식을 수정했어.
+
+### **기존 소스 수정 체크리스트**
+
+**코드 이관 체크리스트**
+
+0/10개 완료
+
+Stone / IsOnStoneProcess를 IsOnStone으로 교체했는가?
+
+Position / PositionProcess를 좌표 튜플로 변경했는가?
+
+controller.State를 controller.Data로 바꿨는가?
+
+Board의 기존 규칙 메서드를 BoardLogic 호출로 변경했는가?
+
+ScoreRule을 ScoreLogic으로 바꾸고 방패 인수를 확인했는가?
+
+Cell.Has()와 StatusEffects 호출을 CellStateLogic으로 변경했는가?
+
+필요한 Othello.Core.Model 및 Othello.Core.Logic using을 추가했는가?
+
+기존 카드를 ISkillCard의 새 매개변수형에 맞췄는가?
+
+화면의 Render와 CellClicked가 튜플을 사용하는가?
+
+빌드와 CoreTests를 실행했는가?
+
+&#x20;체크리스트 복사
+
+### **작업 위치 안내**
+
+앞으로 공동작업을 할 때는 **어떤 기능을 바꾸는지에 따라 수정할 파일을 결정하면 돼.**
+
+게임판의 계산 규칙을 바꾸면 `BoardLogic`, 카드 상태 규칙을 바꾸면 `CardCellStateLogic`이나 `CardGameStateLogic`, 게임의 진행 순서를 바꾸면 `GameController`, 화면을 바꾸면 `GameForm` 또는 `BoardControl`을 수정하는 구조야.
+
+**이번 리팩터링의 핵심은 기존 기능을 없애는 것이 아니라, 기능의 위치와 호출 방법을 정리했다는 점이야.** 공동작업자는 자신이 담당하던 기능이 현재 어느 파일로 이동했는지 확인하고, 변경된 자료형과 메서드 시그니처를 적용하면 기존 작업을 이어갈 수 있어.

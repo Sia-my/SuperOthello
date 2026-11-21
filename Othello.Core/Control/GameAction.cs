@@ -1,29 +1,55 @@
 using Othello.Core.Cards;
-using Othello.Core.Model;
 
-namespace Othello.Core.Control;
+namespace Othello.Core.Control {
+    /*
+     * GameAction.cs - 한 턴의 행동 데이터
+     *
+     * [사용 안내]
+     *
+     * 일반 착수:
+     *   GameAction.Place(row, col)
+     *
+     * 패스:
+     *   GameAction.Pass()
+     *
+     * 카드 사용 + 착수:
+     *   GameAction.WithCard(card, target, move)
+     *
+     * 카드 사용 + 패스:
+     *   GameAction.WithCard(card, target, null)
+     *
+     * 패스 여부:
+     *   action.IsPass
+     *
+     * 착수 위치:
+     *   action.Move
+     *
+     * 카드 대상:
+     *   action.CardTarget
+     *
+     * Position 대신 좌표 튜플을 사용한다.
+     * 실제 행동 처리는 GameController가 담당한다.
+     */
 
-/// <summary>한 턴의 결정: (패 사용 선택) + (착수 또는 패스). 사람과 CPU가 같은 형식을 쓴다.</summary>
-public sealed record GameAction(ISkillCard? Card, Position? CardTarget, Position? Move)
-{
-    public bool IsPass => Move is null;
+    public sealed record GameAction(
+        ISkillCard? Card,
+        (int Row, int Col)? CardTarget,
+        (int Row, int Col)? Move) {
+        public bool IsPass => Move is null;
 
-    public static GameAction Place(Position move) => new(null, null, move);
-    public static GameAction Pass() => new(null, null, null);
-    public static GameAction WithCard(ISkillCard card, Position? target, Position? move) => new(card, target, move);
-}
+        public static GameAction Place(int row, int col)
+            => new(null, null, (row, col));
 
-/// <summary>대전 슬롯 (설계서 3.3 PlayerSlot). IsCpu는 대전 설정 때 고정된다.</summary>
-public enum Difficulty { Easy, Normal, Hard }
+        public static GameAction Place((int Row, int Col) move)
+            => new(null, null, move);
 
-public sealed record PlayerSlot(string Id, bool IsCpu, Difficulty Difficulty = Difficulty.Normal)
-{
-    public static PlayerSlot Human(string id) => new(id, false);
+        public static GameAction Pass()
+            => new(null, null, null);
 
-    public static PlayerSlot Cpu(Difficulty d) => new(d switch
-    {
-        Difficulty.Easy => "#CPU-쉬움",
-        Difficulty.Normal => "#CPU-보통",
-        _ => "#CPU-어려움"
-    }, true, d);
+        public static GameAction WithCard(
+            ISkillCard card,
+            (int Row, int Col)? target,
+            (int Row, int Col)? move)
+            => new(card, target, move);
+    }
 }

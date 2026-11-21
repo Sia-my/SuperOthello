@@ -1,4 +1,5 @@
 using Othello.Core.Control;
+using Othello.Core.Model;
 
 namespace SuperOthello
 {

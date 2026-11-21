@@ -1,29 +1,73 @@
+
+using System.Linq;
 using Othello.Core.Control;
+using Othello.Core.Logic;
 using Othello.Core.Model;
 
-namespace Othello.Core.Cpu;
-
-/// <summary>
-/// ⚠ 임시 CPU: UI 연결 확인용. 패는 쓰지 않고 위치 가중치가 가장 높은 칸에 둔다.
-/// TODO(3주차): EvalResult 사전식 비교, 후보 3개 × A형 패, 깊이 2 알파-베타 (설계서 3.4.4)
-/// </summary>
-public class CPUPlayer
+namespace Othello.Core.Cpu
 {
-    public Difficulty Difficulty { get; }
+    /*
+     * CPUPlayer.cs - CPU의 한 턴 행동 선택
+     *
+     * [사용 안내]
+     *
+     * CPU 생성:
+     *   new CPUPlayer(Difficulty.Normal)
+     *
+     * 행동 선택:
+     *   cpu.ChooseAction(data)
+     *
+     * 선택한 착수 위치:
+     *   action.Move
+     *
+     * 패스 여부:
+     *   action.IsPass
+     *
+     * ChooseAction은 GameAction만 반환하며,
+     * 전달받은 Data를 변경하지 않는다.
+     *
+     * 실제 행동 실행은 GameController가 담당한다.
+     *
+     * [현재 알고리즘]
+     *
+     * 1. 착수 가능한 모든 위치를 탐색한다.
+     * 2. 착수할 곳이 없으면 패스한다.
+     * 3. 위치 가중치가 가장 높은 칸을 선택한다.
+     * 4. 가중치가 같다면 뒤집는 돌이 많은 칸을 선택한다.
+     *
+     * 현재 Difficulty는 설정값만 보관한다.
+     * 난이도별 알고리즘과 카드 사용은 아직 구현되지 않았다.
+     */
 
-    public CPUPlayer(Difficulty difficulty) => Difficulty = difficulty;
-
-    /// <summary>s는 복사본을 넘긴다. 원본 상태를 바꾸지 않는다.</summary>
-    public GameAction ChooseAction(GameState s)
+    public class CPUPlayer
     {
-        var moves = s.Board.GetValidMoves(s.Current);
-        if (moves.Count == 0) return GameAction.Pass();
+        public Difficulty Difficulty { get; }
 
-        Position best = moves
-            .OrderByDescending(p => WeightTables.WeightAt(s.Board, p.Row, p.Col))
-            .ThenByDescending(p => s.Board.GetFlips(p.Row, p.Col, s.Current).Count)
-            .First();
+        public CPUPlayer(Difficulty difficulty)
+            => Difficulty = difficulty;
 
-        return GameAction.Place(best);
+        // 현재 게임 데이터를 읽고 최적의 행동 선택
+        public GameAction ChooseAction(Data data)
+        {
+            var moves = BoardLogic.GetValidMoves(
+                data, data.Current);
+
+            // 착수 가능한 곳이 없으면 패스
+            if (moves.Count == 0)
+                return GameAction.Pass();
+
+            // 위치 가중치 우선, 동점이면 뒤집는 돌 개수 비교
+            var best = moves
+                .OrderByDescending(p =>
+                    WeightTables.WeightAt(
+                        data.Board, p.Row, p.Col))
+                .ThenByDescending(p =>
+                    BoardLogic.GetFlips(
+                        data, p.Row, p.Col,
+                        data.Current).Count)
+                .First();
+
+            return GameAction.Place(best);
+        }
     }
 }
