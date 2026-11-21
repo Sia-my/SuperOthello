@@ -1,3 +1,5 @@
 <Solution>
+  <Project Path="Othello.Core/Othello.Core.csproj" />
+  <Project Path="Othello.Tests/Othello.Tests.csproj" />
   <Project Path="SuperOthello/SuperOthello.csproj" />
 </Solution>
