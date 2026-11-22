@@ -5,25 +5,9 @@ using Othello.Core.Model;
 using Othello.Core.Logic;
 
 namespace Othello.Core.Logic {
-    /*
-     * BoardLogic - 오셀로 기본 규칙
-     *
-     * 초기 돌 배치       : BoardLogic.Reset(data)
-     * 좌표 범위 확인     : BoardLogic.InBounds(row, col)
-     * 뒤집을 돌 계산     : BoardLogic.GetFlips(data, row, col, stone)
-     * 착수 가능 위치     : BoardLogic.GetValidMoves(data, stone)
-     * 착수 가능 여부     : BoardLogic.HasValidMove(data, stone)
-     * 돌 배치 및 뒤집기  : BoardLogic.Place(data, row, col, stone)
-     * 돌 직접 변경       : BoardLogic.PutStone(data, row, col, stone)
-     * 돌 개수 확인       : BoardLogic.Count(data, stone)
-     * 빈칸 개수 확인     : BoardLogic.EmptyCount(data)
-     * 보드 완성 확인     : BoardLogic.IsFull(data)
-     *
-     * 좌표는 (Row, Col) 튜플을 사용한다.
-     * Position 자료형은 사용하지 않는다.
-     *
-     * 일반적인 게임 진행은 GameController를 통해 처리한다.
-     */
+    // 오셀로 기본 규칙: 초기 배치, 뒤집기 계산, 착수, 돌 개수
+    // - 좌표는 (Row, Col) 튜플
+    // - 착수·뒤집기 가능 여부는 CellStateLogic 판정을 따름 (봉인·고정 반영)
 
     public static class BoardLogic {
         // 오셀로의 8방향

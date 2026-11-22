@@ -1,35 +1,8 @@
 using Othello.Core.Cards;
 
 namespace Othello.Core.Control {
-    /*
-     * GameAction.cs - 한 턴의 행동 데이터
-     *
-     * [사용 안내]
-     *
-     * 일반 착수:
-     *   GameAction.Place(row, col)
-     *
-     * 패스:
-     *   GameAction.Pass()
-     *
-     * 카드 사용 + 착수:
-     *   GameAction.WithCard(card, target, move)
-     *
-     * 카드 사용 + 패스:
-     *   GameAction.WithCard(card, target, null)
-     *
-     * 패스 여부:
-     *   action.IsPass
-     *
-     * 착수 위치:
-     *   action.Move
-     *
-     * 카드 대상:
-     *   action.CardTarget
-     *
-     * Position 대신 좌표 튜플을 사용한다.
-     * 실제 행동 처리는 GameController가 담당한다.
-     */
+    // 한 턴의 행동 = 카드 사용(선택) + 착수 또는 패스
+    // - 사람과 CPU가 같은 형식을 사용
 
     public sealed record GameAction(
         ISkillCard? Card,

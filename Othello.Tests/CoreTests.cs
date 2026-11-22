@@ -8,20 +8,8 @@ using Othello.Core.Logic;
 using Othello.Core.Model;
 
 namespace Othello.Tests {
-    /*
-     * CoreTests.cs - 현재 게임 구조의 핵심 기능 테스트
-     *
-     * [사용 안내]
-     * MSTest 테스트 프로젝트에서 실행한다.
-     *
-     * Data + GameLogic.Reset : 초기 게임 상태
-     * BoardLogic             : 착수 및 돌 뒤집기
-     * CellStateLogic         : 고정, 봉인 상태
-     * ScoreLogic             : 점수 계산
-     * GameController         : 카드 사용 및 턴 처리
-     *
-     * 기존 테스트의 TC 번호와 검증 목적을 유지한다.
-     */
+    // 핵심 규칙 테스트
+    // - 메서드 이름 앞 TC 번호 = 설계서 3.5 테스트 번호
 
     [TestClass]
     public class CoreTests {

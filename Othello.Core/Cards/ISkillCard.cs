@@ -4,32 +4,9 @@ using System.Linq;
 using Othello.Core.Model;
 
 namespace Othello.Core.Cards {
-    /*
-     * ISkillCard.cs - 초능력 카드 공통 규약 및 기본 클래스
-     *
-     * [새 카드를 만들 때]
-     *   SkillCardBase를 상속하고 Id, Name, Description, Type,
-     *   Apply()를 구현한다.
-     *   대상 칸이 필요한 카드는 GetTargets()를 재정의한다.
-     *   대상 칸이 필요 없는 카드는 NeedsTarget => false로 설정한다.
-     *
-     * [카드를 사용할 수 있는지 확인]
-     *   card.CanUse(data, player)
-     *
-     * [카드 대상 칸 목록 조회]
-     *   card.GetTargets(data, player)
-     *
-     * [카드 효과 실행]
-     *   card.Apply(data, player, target)
-     *   // target은 (Row, Col) 튜플이며, 대상이 없으면 null
-     *
-     * [주의]
-     *   - 이 파일은 카드의 공통 인터페이스만 정의한다.
-     *   - 카드 사용 순서, 손패 소모, 턴 처리는 GameController가 맡는다.
-     *   - 기존 GameState 클래스 -> Data 클래스,
-     *     Stone -> IsOnStone, Position -> (int Row, int Col)로 변경했다.
-     *   - 카드는 내부에 변하는 상태를 저장하지 않는 것을 전제로 한다.
-     */
+    // 초능력 카드 공통 규칙
+    // - 새 카드 = SkillCardBase를 상속한 클래스 1개 추가
+    // - 카드 객체는 상태를 갖지 않음 → 복제본끼리 공유해도 안전
 
     // A: 판 변경형, B: 점수형, C: 운영형
     public enum CardType {

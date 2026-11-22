@@ -4,26 +4,9 @@ using Othello.Core.Model;
 using Othello.Core.Logic;
 
 namespace Othello.Core.Logic {
-    /*
-     * GameLogic.cs - 게임 진행 규칙
-     *
-     * 상대 돌 색상 얻기       : GameLogic.Opponent(stone)
-     * 새 게임 데이터 초기화  : GameLogic.Reset(data)
-     * 현재 플레이어 패스 가능: GameLogic.CanPass(data)
-     * 정상 착수 기록        : GameLogic.RegisterMove(data)
-     * 수동 패스 기록        : GameLogic.RegisterPass(data)
-     * 턴 종료 및 차례 교체   : GameLogic.EndTurn(data)
-     * 자동 패스 처리        : GameLogic.TryAutoPass(data, out passedPlayer)
-     * 양측 모두 착수 불가    : GameLogic.BothPlayersCannotMove(data)
-     * 기본 게임 종료 조건   : GameLogic.ShouldFinish(data)
-     * 종료 확정 및 보너스   : GameLogic.Finish(data)
-     *
-     * 실제 돌 배치: BoardLogic.Place()
-     * 실제 점수 계산: ScoreLogic.OnPlace()
-     * 실행 순서와 UI 알림: GameController
-     *
-     * 초능력 카드, 손패, 덱 및 봉인 지속시간은 아직 연결되지 않았다.
-     */
+    // 턴·패스·종료 규칙
+    // - 돌 배치는 BoardLogic, 점수는 ScoreLogic 담당
+    // - 실행 순서는 GameController가 결정
 
     public static class GameLogic {
         // 상대 플레이어
@@ -99,7 +82,7 @@ namespace Othello.Core.Logic {
 
         // 게임 종료 확정
         public static IsOnStone Finish(Data data) {
-            // 종료 보너스 중복 적용 방지
+            // 이미 끝났으면 보너스를 다시 더하지 않음
             if (data.IsOver)
                 return ScoreLogic.Winner(data);
 

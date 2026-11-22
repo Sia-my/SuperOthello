@@ -6,13 +6,12 @@ namespace SuperOthello
     internal static class Program
     {
         /// <summary>
-        ///  The main entry point for the application.
+        /// 프로그램 시작점
         /// </summary>
         [STAThread]
         static void Main()
         {
-            // To customize application configuration such as set high DPI settings or default font,
-            // see https://aka.ms/applicationconfiguration.
+            // 고해상도(DPI)·기본 글꼴 등 기본 설정
             ApplicationConfiguration.Initialize();
 
             // TODO: MatchSetupForm 완성 전까지는 바로 게임 화면을 띄운다.

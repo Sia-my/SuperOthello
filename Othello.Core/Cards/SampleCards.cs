@@ -4,25 +4,8 @@ using Othello.Core.Logic;
 using Othello.Core.Model;
 
 namespace Othello.Core.Cards {
-    /*
-     * SampleCards.cs - 기존 초능력 카드 5종 및 기본 카드 풀
-     *
-     * [사용 안내]
-     * 기본 카드 풀 생성   : CardPool.Current()
-     * 사용 가능 확인     : card.CanUse(data, user)
-     * 대상 칸 목록       : card.GetTargets(data, user)
-     * 카드 효과 적용     : card.Apply(data, user, target)
-     *
-     * [카드 목록]
-     * ConvertCard      : 상대 돌 전향 (모서리 제외), 사용자 -2점
-     * DoubleScoreCard  : 이번 착수 점수 2배
-     * FixCard          : 내 돌 고정
-     * SealCard         : 빈칸 3턴 봉인
-     * SilenceCard      : 상대의 다음 턴 카드 사용 금지
-     *
-     * CardData.cs의 확장 상태값과 Logic 메서드를 사용한다.
-     * 카드 사용 순서, 손패 제거, 턴 처리는 GameController에서 담당한다.
-     */
+    // 현재 구현된 카드 5종 (번호 = 설계서 후보 24종 표의 번호)
+    // - 칸 상태 변경은 CellStateLogic, 점수 변경은 ScoreLogic 사용
 
     /// <summary>4. 전향 (A): 상대 돌 1개를 내 돌로 전향. 모서리 불가, 사용자 -2점.</summary>
     public sealed class ConvertCard : SkillCardBase {
@@ -62,7 +45,7 @@ namespace Othello.Core.Cards {
 
             BoardLogic.PutStone(data, row, col, user);
 
-            // 기존 ScoreRule.OnCard의 방패 적용 방식 보존.
+            // 방패 상태면 감점 절반
             bool shielded =
                 data.Status[ScoreLogic.PlayerIndex(user)].Shielded;
 
@@ -128,8 +111,7 @@ namespace Othello.Core.Cards {
 
     /// <summary>9. 봉인 (A): 빈칸 하나를 3턴 동안 착수 불가 상태로 만든다.</summary>
     public sealed class SealCard : SkillCardBase {
-        // 양쪽 턴 모두 계산:
-        // 내 턴 끝 2 -> 상대 턴 끝 1 -> 내 턴 끝 0.
+        // 양쪽 턴을 모두 셈: 내 턴 끝 2 → 상대 턴 끝 1 → 내 턴 끝 0(해제)
         public const byte SealDuration = 3;
 
         public override int Id => 9;
@@ -190,7 +172,7 @@ namespace Othello.Core.Cards {
 
     // 현재 사용 중인 임시 카드 풀
     public static class CardPool {
-        /// <summary>기존 임시 덱 구성: 5종 2장씩 총 10장.</summary>
+        /// <summary>임시 덱: 5종 × 2장 = 10장 (최종 12종 확정 후 교체)</summary>
         public static IEnumerable<ISkillCard> Current()
             => new ISkillCard[]
             {

@@ -9,24 +9,9 @@ using Othello.Core.Model;
 
 namespace SuperOthello;
 
-/*
- * BoardControl.cs - 오셀로 게임판 표시 및 클릭 입력
- *
- * [UI 사용 안내]
- * 보드 표시 및 갱신:
- *   boardControl.Render(controller.Data.Board, hints, targets, controller.LastMove);
- *
- * 칸 클릭 이벤트:
- *   boardControl.CellClicked += p =>
- *       controller.TryPlace(p.Row, p.Col, out _);
- *
- * hints/targets: IReadOnlyCollection<(int Row, int Col)>
- * lastMove    : (int Row, int Col)?
- *
- * 화면에 돌, 봉인 빗금, 고정 테두리, 착수 힌트, 카드 대상,
- * 마지막 착수 표시만 그린다.
- * 오셀로 규칙 및 게임 데이터 변경은 하지 않는다.
- */
+// 보드 그리기 전용 컨트롤 (GDI+, 더블 버퍼링)
+// - 규칙 판단은 하지 않고, 클릭한 칸만 CellClicked로 전달
+
 public class BoardControl : Control {
     private static readonly Color BoardColor = Color.FromArgb(46, 125, 80);
     private static readonly Color LineColor = Color.FromArgb(30, 80, 50);
@@ -53,7 +38,7 @@ public class BoardControl : Control {
             ControlStyles.ResizeRedraw, true);
     }
 
-    // 현재 보드와 강조할 좌표들을 받아 화면을 갱신한다.
+    // 그릴 내용을 한 번에 받아서 다시 그리기
     public void Render(
         Board board,
         IReadOnlyCollection<(int Row, int Col)> hints,

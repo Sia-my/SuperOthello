@@ -3,29 +3,9 @@ using System;
 using Othello.Core.Cards;
 
 namespace Othello.Core.Model {
-    /*
-     * CardData.cs - Data.cs의 카드/초능력 확장 데이터
-     *
-     * [사용 안내]
-     * 칸 상태 확인       : data.Board.Cells[row, col].CellFlags
-     * 봉인 남은 턴      : data.Board.Cells[row, col].SealTurns
-     * 보드 전체 상태    : data.Board.GameFlags
-     * 흑/백 손패        : data.Hands[0] / data.Hands[1]
-     * 손패 편의 접근    : data.HandOf(IsOnStone.Black)
-     * 공용 카드 덱      : data.Deck
-     * 플레이어별 상태   : data.Status[0] / data.Status[1]
-     * 상태 편의 접근    : data.StatusOf(IsOnStone.White)
-     * 이번 턴 점수 배율 : data.TurnScoreMultiplier
-     *
-     * [확장 규칙]
-     * - Data/Board/Cell은 Data.cs와 동일한 partial 자료형이다.
-     * - Cell/Board의 실제 필드는 Data.cs에 모아 두었다.
-     * - 새 칸/보드 상태는 아래 CardCellFields/CardBoardFields에 추가하고
-     *   partial struct에 읽기/쓰기 속성을 추가한다.
-     * - 새 참조형 Data 필드는 선언 시 초기화하고,
-     *   CloneExtendedData()에서 독립적으로 복제한다.
-     * - 실제 카드 효과 및 상태 규칙은 Logic에서 처리한다.
-     */
+    // 카드·초능력 데이터 (Data.cs의 partial 확장)
+    // - 새 칸 상태: CardCellFields에 필드 + Cell에 속성 추가
+    // - 새 참조형 필드: CloneExtendedData()에서 따로 복제
 
     [Flags]
     public enum CellState : byte {
@@ -37,27 +17,27 @@ namespace Othello.Core.Model {
     [Flags]
     public enum GameState {
         None = 0
-        // 게임/보드 전체 효과가 추가되면 이곳에 선언
+        // 보드 전체 효과가 생기면 여기에 추가
     }
 
-    // 플레이어 한 명의 카드 상태
+    // 플레이어별 일시 상태
     public struct PlayerStatus {
         public bool Silenced;
         public bool Shielded;
     }
 
-    // Cell 내부 확장 필드들을 하나의 값 타입으로 관리
+    // 칸의 초능력 상태 묶음
     internal struct CardCellFields {
         public CellState CellFlags;
         public byte SealTurns;
     }
 
-    // Board 내부 확장 필드들을 하나의 값 타입으로 관리
+    // 보드의 초능력 상태 묶음
     internal struct CardBoardFields {
         public GameState GameFlags;
     }
 
-    // 필드를 추가하지 않고 접근 속성만 확장한다. (CS0282 방지)
+    // 필드는 Data.cs에만 두고 여기선 속성만 추가 (partial struct 경고 CS0282 방지)
     public partial struct Cell {
         public CellState CellFlags {
             get => CardFields.CellFlags;
@@ -78,7 +58,7 @@ namespace Othello.Core.Model {
     }
 
     public partial class Data {
-        // 선언 시 초기화하여 nullable 경고(CS8618)를 방지한다.
+        // 선언과 동시에 생성 (null 경고 방지)
         public Hand[] Hands = { new Hand(), new Hand() };
         public CardDeck Deck = new CardDeck();
         public PlayerStatus[] Status = new PlayerStatus[2];
@@ -100,19 +80,18 @@ namespace Othello.Core.Model {
             };
 
         partial void InitializeExtendedData() {
-            // Hands, Deck, Status는 필드 선언 시 이미 생성된다.
+            // Hands, Deck, Status는 선언 시 이미 생성됨
             TurnScoreMultiplier = 1;
             Board.GameFlags = GameState.None;
         }
 
         partial void CloneExtendedData() {
-            // 배열뿐 아니라 내부 Hand 객체까지 독립적으로 복제한다.
+            // Hand 객체까지 따로 복제 (카드 객체는 공유)
             Hands = Array.ConvertAll(Hands, hand => hand.Clone());
             Deck = Deck.Clone();
             Status = (PlayerStatus[])Status.Clone();
 
-            // TurnScoreMultiplier, CardFields 등 값 타입은
-            // Data.MemberwiseClone() / Board.Clone()에서 이미 복사된다.
+            // 값 타입(배율, CardFields)은 MemberwiseClone에서 이미 복사됨
         }
     }
 }

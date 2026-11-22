@@ -3,41 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 
 namespace Othello.Core.Cards {
-    /*
-     * CardDeck.cs - 공용 초능력 카드 덱
-     *
-     * [사용 안내]
-     *
-     * 빈 덱 생성:
-     *   new CardDeck()
-     *
-     * 카드 풀로 덱 생성:
-     *   new CardDeck(cardPool)
-     *
-     * 고정 시드로 생성:
-     *   new CardDeck(cardPool, seed)
-     *
-     * 남은 카드 수 확인:
-     *   deck.Count
-     *
-     * 화면 표시용 목록:
-     *   deck.Peek()
-     *
-     * 카드 한 장 뽑기:
-     *   deck.Draw()
-     *
-     * 사용한 카드 반환:
-     *   deck.Return(card)
-     *
-     * 덱 섞기:
-     *   deck.Shuffle()
-     *
-     * 덱 복제:
-     *   deck.Clone()
-     *
-     * 카드 효과는 처리하지 않는다.
-     * 드로우와 반환 시점은 GameController가 관리한다.
-     */
+    // 공용 카드 덱
+    // - 쓰거나 버린 카드는 Return()으로 되돌린 뒤 다시 섞음
+    // - Peek()은 화면 표시용 (실제 순서는 비공개)
 
     public class CardDeck {
         private readonly List<ISkillCard> cards = new();

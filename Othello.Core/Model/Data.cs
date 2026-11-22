@@ -1,27 +1,8 @@
 ﻿
 namespace Othello.Core.Model {
-    /*
-     * Data.cs - 오셀로 기본 데이터
-     *
-     * [사용 안내]
-     * 게임 데이터 생성     : new Data()
-     * 현재 차례 확인      : data.Current
-     * 특정 칸 돌 확인    : data.Board.Cells[row, col].Stone
-     * 점수 확인          : data.Scores[0] / data.Scores[1]  // 흑 / 백
-     * 턴 번호 확인       : data.TurnNumber
-     * 연속 패스 확인     : data.ConsecutivePasses
-     * 게임 종료 확인     : data.IsOver
-     * 전체 데이터 복제   : data.Clone()
-     *
-     * [partial 구조]
-     * Data.cs     : 기본 데이터와 복제 진입점
-     * CardData.cs : 카드/초능력 데이터 및 확장 데이터 복제
-     *
-     * Cell과 Board의 인스턴스 필드는 이 파일에만 선언한다.
-     * CardData.cs는 확장 저장 공간의 타입과 접근 속성을 정의한다.
-     * 이 방식은 partial struct 필드 순서 경고(CS0282)를 방지한다.
-     * 일반적인 착수와 턴 진행은 GameController를 통해 처리한다.
-     */
+    // 게임 기본 데이터: 보드, 점수, 차례, 턴 정보
+    // - 데이터만 보관, 계산은 Logic 클래스에서
+    // - new Data()는 빈 보드 → 초기 배치는 GameLogic.Reset()
 
     // 돌의 종류
     public enum IsOnStone : byte {
@@ -34,7 +15,7 @@ namespace Othello.Core.Model {
     public partial struct Cell {
         public IsOnStone Stone;
 
-        // CardData.cs에서 정의하는 값 타입 확장 저장 공간
+        // 초능력 상태 저장 공간 (구조는 CardData.cs)
         internal CardCellFields CardFields;
     }
 
@@ -44,11 +25,11 @@ namespace Othello.Core.Model {
 
         public Cell[,] Cells;
 
-        // CardData.cs에서 정의하는 값 타입 확장 저장 공간
+        // 초능력 상태 저장 공간 (구조는 CardData.cs)
         internal CardBoardFields CardFields;
 
         public Board Clone() {
-            // 값 타입인 CardFields도 함께 복사된다.
+            // 배열만 새로 복사 (CardFields는 값 타입이라 자동 복사)
             Board copy = this;
             copy.Cells = Cells == null ? null! : (Cell[,])Cells.Clone();
             return copy;
@@ -82,16 +63,16 @@ namespace Othello.Core.Model {
         public Data Clone() {
             Data copy = (Data)MemberwiseClone();
 
-            // 게임판과 점수 배열은 원본과 독립적으로 복제한다.
+            // 보드·점수는 원본과 분리해서 복제
             copy.Board = Board.Clone();
             copy.Scores = (int[])Scores.Clone();
 
-            // 카드/초능력 참조형 데이터는 CardData.cs에서 복제한다.
+            // 손패·덱·상태는 CardData.cs에서 복제
             copy.CloneExtendedData();
             return copy;
         }
 
-        // CardData.cs에서 구현하는 확장 메서드
+        // 구현은 CardData.cs
         partial void InitializeExtendedData();
         partial void CloneExtendedData();
     }
