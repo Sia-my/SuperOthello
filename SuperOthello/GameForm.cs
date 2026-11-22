@@ -190,8 +190,10 @@ public class GameForm : Form {
         cpuThinking = false;
         if (IsDisposed || ctrl.Data.IsOver) return;
         if (!ctrl.TryExecuteTurn(action, out string err)) {
-            logBox.Items.Add($"CPU 오류: {err}");   // TODO: 설계서 2.5대로 최고 가중치 일반 착수로 대체
-            RefreshView();
+            // 설계서 2.5: CPU 행동이 거부되면 카드 없이 가중치 최고 칸에 착수
+            logBox.Items.Add($"CPU 오류: {err} → 일반 착수로 대체");
+            if (!ctrl.TryExecuteTurn(cpu.FallbackAction(ctrl.Data), out _))
+                RefreshView();
         }
     }
 
