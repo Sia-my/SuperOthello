@@ -18,7 +18,12 @@ namespace Othello.Core.Logic {
                     nameof(stone))
             };
 
-        // 착수 점수: 착수자 +n×배율, 상대 −n (방패면 절반)
+        public const int LuckySevenFlips = 7;
+        public const int LuckySevenBonus = 7;
+
+        // 착수 점수 (카드는 플래그만 켜고 계산은 여기 한곳에서)
+        // - 획득 = n×배율 (+ 럭키 세븐: 정확히 7개면 +7)
+        // - 감점 = n×감점배율 → 상대가 방패면 절반(내림)
         public static (int gain, int penalty) OnPlace(
             Data data,
             IsOnStone mover,
@@ -27,15 +32,25 @@ namespace Othello.Core.Logic {
             IsOnStone opponent = GameLogic.Opponent(mover);
 
             int gain = flipped * data.TurnScoreMultiplier;
+            if (data.TurnLuckySeven && flipped == LuckySevenFlips)
+                gain += LuckySevenBonus;
 
-            int penalty = opponentShielded
-                ? flipped / 2
-                : flipped;
+            int penalty = flipped * data.TurnPenaltyMultiplier;
+            if (opponentShielded)
+                penalty /= 2;
 
             data.Scores[PlayerIndex(mover)] += gain;
             data.Scores[PlayerIndex(opponent)] -= penalty;
 
             return (gain, penalty);
+        }
+
+        // 이번 턴 한정 점수 효과 초기화 (점수 2배·마이너스의 손·럭키 세븐)
+        // - 새 게임, 턴 종료, CPU 시뮬레이션 착수 후에 호출
+        public static void ResetTurnModifiers(Data data) {
+            data.TurnScoreMultiplier = 1;
+            data.TurnPenaltyMultiplier = 1;
+            data.TurnLuckySeven = false;
         }
 
         // 카드 효과 점수 (방패면 감점 절반)

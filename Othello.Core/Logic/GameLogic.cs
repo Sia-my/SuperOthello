@@ -27,7 +27,7 @@ namespace Othello.Core.Logic {
             data.TurnNumber = 1;
             data.ConsecutivePasses = 0;
             data.IsOver = false;
-            data.TurnScoreMultiplier = 1;
+            ScoreLogic.ResetTurnModifiers(data);
         }
 
         // 현재 플레이어가 패스할 수 있는가?
@@ -49,7 +49,7 @@ namespace Othello.Core.Logic {
 
         // 턴 종료
         public static void EndTurn(Data data) {
-            data.TurnScoreMultiplier = 1;
+            ScoreLogic.ResetTurnModifiers(data);
             data.Current = Opponent(data.Current);
             data.TurnNumber++;
         }

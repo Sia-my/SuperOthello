@@ -63,7 +63,10 @@ namespace Othello.Core.Model {
         public CardDeck Deck = new CardDeck();
         public PlayerStatus[] Status = new PlayerStatus[2];
 
-        public int TurnScoreMultiplier;
+        // 이번 턴에만 유효한 점수 효과 (초기화는 ScoreLogic.ResetTurnModifiers)
+        public int TurnScoreMultiplier;     // 점수 2배 = 2
+        public int TurnPenaltyMultiplier;   // 마이너스의 손 = 2
+        public bool TurnLuckySeven;         // 럭키 세븐
 
         public Hand HandOf(IsOnStone stone)
             => Hands[PlayerIndex(stone)];
@@ -82,6 +85,8 @@ namespace Othello.Core.Model {
         partial void InitializeExtendedData() {
             // Hands, Deck, Status는 선언 시 이미 생성됨
             TurnScoreMultiplier = 1;
+            TurnPenaltyMultiplier = 1;
+            TurnLuckySeven = false;
             Board.GameFlags = GameState.None;
         }
 

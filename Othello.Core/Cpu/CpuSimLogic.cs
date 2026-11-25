@@ -32,7 +32,7 @@ namespace Othello.Core.Cpu {
                 return false;
 
             PlaceAndScore(data, cand.Move, me);
-            data.TurnScoreMultiplier = 1;   // 점수 2배는 이번 착수에만
+            ScoreLogic.ResetTurnModifiers(data);   // 점수 2배·럭키 세븐·마이너스의 손은 이번 착수에만
             return true;
         }
 
