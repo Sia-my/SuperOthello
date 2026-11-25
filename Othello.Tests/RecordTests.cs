@@ -148,5 +148,21 @@ namespace Othello.Tests {
                 Assert.AreEqual(expected[i].Description, rows[i].Description);
             }
         }
+
+        [TestMethod]
+        public void DB09_승률_계산() {
+            var a = PlayerSlot.Human("a");
+            var b = PlayerSlot.Human("b");
+            for (int i = 0; i < 3; i++) repo.Save(a, b, Finished(30, 20)); // a 3승
+            repo.Save(a, b, Finished(10, 20));                             // a 1패
+
+            var stats = repo.GetStats("a");
+            Assert.AreEqual(0.75, stats.WinRate, 1e-9);
+            Assert.AreEqual("75.0%", stats.WinRateText);
+
+            var none = repo.GetStats("nobody");
+            Assert.AreEqual(0, none.WinRate);
+            Assert.AreEqual("0.0%", none.WinRateText);
+        }
     }
 }

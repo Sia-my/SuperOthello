@@ -29,8 +29,8 @@ public class MainForm : Form {
         Controls.Add(title);
 
         AddButton("대전", 90, OnMatch);
-        AddButton("전적 보기", 145, (_, _) => NotReady("전적 보기"));
-        AddButton("카드 도감", 200, (_, _) => NotReady("카드 도감"));
+        AddButton("전적 보기", 145, OnRecords);
+        AddButton("카드 도감", 200, (_, _) => { using var book = new CardBookForm(records); book.ShowDialog(this); });
         AddButton("종료", 255, (_, _) => Close());
     }
 
@@ -40,8 +40,15 @@ public class MainForm : Form {
         Controls.Add(btn);
     }
 
-    private void NotReady(string name)
-        => MessageBox.Show($"{name}는 준비 중입니다.", name, MessageBoxButtons.OK, MessageBoxIcon.Information);
+    // 전적 DB가 없으면 안내만 (설계서 2.5)
+    private void OnRecords(object? sender, EventArgs e) {
+        if (records == null) {
+            MessageBox.Show("전적 DB를 사용할 수 없어 전적을 볼 수 없습니다.", "전적 보기", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        using var form = new RecordForm(records);
+        form.ShowDialog(this);
+    }
 
     private void OnMatch(object? sender, EventArgs e) {
         using var setup = new MatchSetupForm();

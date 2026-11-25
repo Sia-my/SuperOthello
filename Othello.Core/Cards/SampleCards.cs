@@ -13,6 +13,7 @@ namespace Othello.Core.Cards {
         public override string Name => "전향";
         public override string Description => "상대 돌 1개를 내 돌로 바꾼다 (모서리 불가, 사용자 -2점)";
         public override CardType Type => CardType.A;
+        public override string ScoreEffect => "사용자 -2";
 
         private static bool IsCorner(int row, int col)
             => (row == 0 || row == Board.Size - 1)
@@ -61,6 +62,7 @@ namespace Othello.Core.Cards {
         public override string Name => "점수 2배";
         public override string Description => "이번 착수로 얻는 점수를 2배로 계산한다";
         public override CardType Type => CardType.B;
+        public override string ScoreEffect => "획득 점수 ×2";
         public override bool NeedsTarget => false;
 
         public override string Apply(
@@ -78,6 +80,7 @@ namespace Othello.Core.Cards {
         public override string Name => "고정";
         public override string Description => "내 돌 1개를 게임 끝까지 뒤집히거나 제거되지 않게 한다";
         public override CardType Type => CardType.A;
+        public override string ScoreEffect => "없음";
 
         public override IReadOnlyList<(int Row, int Col)> GetTargets(
             Data data, IsOnStone user) {
@@ -118,6 +121,7 @@ namespace Othello.Core.Cards {
         public override string Name => "봉인";
         public override string Description => "빈칸 1개를 3턴 동안 아무도 둘 수 없게 막는다";
         public override CardType Type => CardType.A;
+        public override string ScoreEffect => "없음";
 
         public override IReadOnlyList<(int Row, int Col)> GetTargets(
             Data data, IsOnStone user) {
@@ -155,6 +159,7 @@ namespace Othello.Core.Cards {
         public override string Name => "침묵";
         public override string Description => "상대가 다음 턴에 패를 쓸 수 없게 만든다";
         public override CardType Type => CardType.C;
+        public override string ScoreEffect => "없음";
         public override bool NeedsTarget => false;
 
         public override string Apply(

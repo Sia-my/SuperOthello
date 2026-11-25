@@ -41,6 +41,9 @@ namespace Othello.Core.Cards {
         public abstract CardType Type { get; }
         public virtual bool NeedsTarget => true;
 
+        // 도감 표시용 점수 영향 (설계서 2.2 후보 24종 표의 "점수 영향" 열)
+        public virtual string ScoreEffect => "없음";
+
         public virtual bool CanUse(Data data, IsOnStone user)
             => !NeedsTarget || GetTargets(data, user).Count > 0;
 
