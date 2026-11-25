@@ -3,11 +3,11 @@ using Othello.Core.Records;
 
 namespace SuperOthello
 {
+    // 프로그램 시작점: 전적 DB 준비 후 메인 메뉴 표시
+    // - DB를 못 열어도 게임은 실행 (전적 기능만 비활성)
+
     internal static class Program
     {
-        /// <summary>
-        /// 프로그램 시작점
-        /// </summary>
         [STAThread]
         static void Main()
         {

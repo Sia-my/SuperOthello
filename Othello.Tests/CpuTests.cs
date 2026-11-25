@@ -1,6 +1,3 @@
-
-using System.Linq;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Othello.Core.Cards;
 using Othello.Core.Control;
 using Othello.Core.Cpu;
@@ -283,6 +280,128 @@ namespace Othello.Tests {
 
             Data three = Build(3);
             Assert.IsNull(CpuCardLogic.ChooseConditionCard(three, IsOnStone.Black, (2, 4)));
+        }
+
+        // ───────────── 설계서 3.5 대조로 추가 ─────────────
+
+        // 시드별로 실제 대국을 진행하며 각 차례의 상태를 넘겨줌 (흑: 어려움, 백: 쉬움 → 무작위 카드 사용으로 상태 다양화)
+        private static IEnumerable<GameController> PlayedStates(int seeds) {
+            for (int seed = 0; seed < seeds; seed++) {
+                var ctrl = new GameController(PlayerSlot.Cpu(Difficulty.Hard), PlayerSlot.Human("b"), seed: seed);
+                var black = new CPUPlayer(Difficulty.Hard, seed);
+                var white = new CPUPlayer(Difficulty.Easy, seed + 500);
+                ctrl.Start();
+
+                for (int t = 0; t < 200 && !ctrl.Data.IsOver; t++) {
+                    yield return ctrl;   // 이 시점 상태로 검사
+                    if (ctrl.Data.IsOver) break;
+                    var who = ctrl.Data.Current == IsOnStone.Black ? black : white;
+                    if (!ctrl.TryExecuteTurn(who.ChooseAction(ctrl.Data.Clone()), out _))
+                        ctrl.TryExecuteTurn(who.FallbackAction(ctrl.Data), out _);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void TC21_행동합법성_상태_1000개() {
+            // 각 상태에서 세 난이도 CPU의 행동이 모두 규칙상 합법 (컨트롤러 검증 통과)
+            var cpus = new[] {
+                new CPUPlayer(Difficulty.Easy, 1), new CPUPlayer(Difficulty.Normal, 2), new CPUPlayer(Difficulty.Hard, 3)
+            };
+            int checkedStates = 0;
+
+            foreach (var ctrl in PlayedStates(40)) {
+                foreach (var cpu in cpus) {
+                    // 같은 상태를 복제한 컨트롤러가 없으므로, 실행 대신 같은 검증(복제본 적용)만 수행
+                    var action = cpu.ChooseAction(ctrl.Data.Clone());
+                    Assert.IsTrue(IsLegal(ctrl.Data, action, out string err), $"{cpu.Difficulty}: {err}");
+                }
+                if (++checkedStates >= 1000) break;
+            }
+
+            Assert.IsTrue(checkedStates >= 1000, $"검사한 상태 {checkedStates}개");
+        }
+
+        // GameController.TryExecuteTurn의 사전 검증과 같은 규칙으로 복제본에 적용해 봄
+        private static bool IsLegal(Data data, GameAction action, out string error) {
+            error = "";
+            Data copy = data.Clone();
+            IsOnStone me = copy.Current;
+            try {
+                if (action.Card is ISkillCard card) {
+                    if (GameStateLogic.IsSilenced(copy, me)) { error = "침묵 중 카드"; return false; }
+                    if (!copy.HandOf(me).Cards.Contains(card)) { error = "손패에 없는 카드"; return false; }
+                    if (!card.CanUse(copy, me)) { error = $"{card.Name} 사용 불가"; return false; }
+                    card.Apply(copy, me, action.CardTarget);
+                }
+                if (action.Move is (int Row, int Col) m)
+                    BoardLogic.Place(copy, m.Row, m.Col, me);
+                else
+                    GameLogic.RegisterPass(copy);
+                return true;
+            }
+            catch (InvalidOperationException ex) {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        [TestMethod]
+        public void TC24_가중치표_빈칸_40_39_15_14() {
+            Data WithEmpty(int empty) {
+                Data data = EmptyData();
+                for (int i = 0; i < 64 - empty; i++)
+                    BoardLogic.PutStone(data, 7 - i / 8, 7 - i % 8, IsOnStone.Black);   // 아래쪽부터 채움 (0행 모서리는 비움)
+                BoardLogic.PutStone(data, 7, 7, IsOnStone.White);   // 오른쪽 아래 모서리는 차지됨
+                return data;
+            }
+
+            Data e40 = WithEmpty(40), e39 = WithEmpty(39), e15 = WithEmpty(15), e14 = WithEmpty(14);
+            Assert.AreEqual(WeightTables.Phase.Opening, WeightTables.PhaseOf(e40.Board));
+            Assert.AreEqual(WeightTables.Phase.Middle, WeightTables.PhaseOf(e39.Board));
+            Assert.AreEqual(WeightTables.Phase.Middle, WeightTables.PhaseOf(e15.Board));
+            Assert.AreEqual(WeightTables.Phase.End, WeightTables.PhaseOf(e14.Board));
+
+            // 초반: 차지된 모서리 옆이어도 기본표 감점 유지 / 중반: 0 / 종반: 평탄표
+            Assert.AreEqual(-50, WeightTables.WeightAt(e40.Board, 6, 6));
+            Assert.AreEqual(0, WeightTables.WeightAt(e39.Board, 6, 6));
+            Assert.AreEqual(-20, WeightTables.WeightAt(e39.Board, 0, 1), "빈 모서리 옆은 그대로");
+            Assert.AreEqual(5, WeightTables.WeightAt(e14.Board, 3, 3));
+            Assert.AreEqual(30, WeightTables.WeightAt(e14.Board, 0, 0));
+        }
+
+        [TestMethod]
+        public void TC25_가지치기_켬끔_동일행동() {
+            int compared = 0;
+            foreach (var ctrl in PlayedStates(15)) {
+                foreach (var level in new[] { Difficulty.Normal, Difficulty.Hard }) {
+                    var on = new CPUPlayer(level, 7).ChooseAction(ctrl.Data.Clone());
+                    var off = new CPUPlayer(level, 7) { UsePruning = false }.ChooseAction(ctrl.Data.Clone());
+                    Assert.AreEqual(on, off, $"{level}, 턴 {ctrl.Data.TurnNumber}");
+                    compared++;
+                }
+            }
+            Assert.IsTrue(compared > 300, $"비교 {compared}회");
+        }
+
+        [TestMethod]
+        public void TC26_어려움_30수_각_0_5초_이내() {
+            var hard = new CPUPlayer(Difficulty.Hard, 1);
+            long max = 0;
+            int measured = 0;
+
+            foreach (var ctrl in PlayedStates(5)) {
+                if (ctrl.Data.IsOver || ctrl.Data.Current != IsOnStone.Black) continue;
+                Data snapshot = ctrl.Data.Clone();
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                hard.ChooseAction(snapshot);
+                sw.Stop();
+                max = Math.Max(max, sw.ElapsedMilliseconds);
+                if (++measured >= 30) break;
+            }
+
+            Assert.AreEqual(30, measured);
+            Assert.IsTrue(max < 500, $"최대 {max}ms");
         }
     }
 }

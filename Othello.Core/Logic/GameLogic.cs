@@ -1,7 +1,4 @@
-﻿
-using System;
-using Othello.Core.Model;
-using Othello.Core.Logic;
+﻿using Othello.Core.Model;
 
 namespace Othello.Core.Logic {
     // 턴·패스·종료 규칙

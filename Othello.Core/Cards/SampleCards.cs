@@ -1,5 +1,3 @@
-
-using System.Collections.Generic;
 using Othello.Core.Logic;
 using Othello.Core.Model;
 
@@ -75,7 +73,7 @@ namespace Othello.Core.Cards {
         }
     }
 
-    /// <summary>7. 고정 (A): 자기 돌을 게임 끝까지 뒤집거나 제거할 수 없게 한다.</summary>
+    /// <summary>7. 고정 (A): 내 돌 1개를 게임 끝까지 뒤집기·제거 불가로</summary>
     public sealed class FixCard : SkillCardBase {
         public override int Id => 7;
         public override string Name => "고정";
@@ -154,7 +152,7 @@ namespace Othello.Core.Cards {
         }
     }
 
-    /// <summary>11. 침묵 (C): 상대가 다음 턴에 카드를 쓰지 못하게 한다.</summary>
+    /// <summary>11. 침묵 (C): 상대는 다음 턴에 카드 사용 불가</summary>
     public sealed class SilenceCard : SkillCardBase {
         public override int Id => 11;
         public override string Name => "침묵";

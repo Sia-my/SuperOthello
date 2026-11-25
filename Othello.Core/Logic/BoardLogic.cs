@@ -1,8 +1,4 @@
-
-using System;
-using System.Collections.Generic;
 using Othello.Core.Model;
-using Othello.Core.Logic;
 
 namespace Othello.Core.Logic {
     // 오셀로 기본 규칙: 초기 배치, 뒤집기 계산, 착수, 돌 개수

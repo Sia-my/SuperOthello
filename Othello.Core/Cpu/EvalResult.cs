@@ -1,5 +1,3 @@
-
-using System;
 using Othello.Core.Model;
 
 namespace Othello.Core.Cpu {

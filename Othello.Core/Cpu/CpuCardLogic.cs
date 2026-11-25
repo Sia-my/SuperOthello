@@ -1,6 +1,3 @@
-
-using System.Collections.Generic;
-using System.Linq;
 using Othello.Core.Cards;
 using Othello.Core.Logic;
 using Othello.Core.Model;

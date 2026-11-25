@@ -1,13 +1,10 @@
-using System.IO;
-using System.Linq;
 using Microsoft.Data.Sqlite;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Othello.Core.Cards;
 using Othello.Core.Model;
 using Othello.Core.Records;
 
 namespace Othello.Tests {
-    // 전적 DB 테스트 (설계서 3.3.1, 3.5 TC-31~32)
+    // 전적 DB 테스트 (설계서 3.3.1, 3.5 TC-31~33)
     // - 테스트마다 임시 파일 DB 사용, 실제 records.db는 건드리지 않음
 
     [TestClass]
@@ -26,7 +23,10 @@ namespace Othello.Tests {
         public void Cleanup() {
             // 연결 풀이 파일을 잡고 있으므로 먼저 해제
             SqliteConnection.ClearAllPools();
-            if (File.Exists(dbPath)) File.Delete(dbPath);
+            if (File.Exists(dbPath)) {
+                File.SetAttributes(dbPath, FileAttributes.Normal);   // DB10에서 읽기 전용으로 바꾼 경우
+                File.Delete(dbPath);
+            }
         }
 
         private static Data Finished(int black, int white) {
@@ -148,6 +148,19 @@ namespace Othello.Tests {
                 Assert.AreEqual(expected[i].Name, rows[i].Name);
                 Assert.AreEqual(expected[i].Description, rows[i].Description);
             }
+        }
+
+        [TestMethod]
+        public void DB10_TC33_읽기전용_DB면_저장은_예외로_알리고_조회는_가능() {
+            // GameForm은 이 예외를 잡아 "전적을 저장하지 못했습니다" 안내 후 결과 화면을 정상 표시 (설계서 2.5)
+            repo.Save(PlayerSlot.Human("a"), PlayerSlot.Human("b"), Finished(3, 1));
+            SqliteConnection.ClearAllPools();   // 열려 있는 쓰기 연결 정리
+            File.SetAttributes(dbPath, FileAttributes.ReadOnly);
+
+            Assert.ThrowsException<SqliteException>(() =>
+                repo.Save(PlayerSlot.Human("a"), PlayerSlot.Human("b"), Finished(5, 1)));
+
+            Assert.AreEqual(1, repo.GetRecent().Count, "기존 기록은 그대로");
         }
 
         [TestMethod]

@@ -1,4 +1,3 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Othello.Core.Model;
 
 namespace Othello.Tests {

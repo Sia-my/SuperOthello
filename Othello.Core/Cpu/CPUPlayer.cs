@@ -1,7 +1,3 @@
-
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Othello.Core.Cards;
 using Othello.Core.Control;
 using Othello.Core.Logic;
@@ -22,6 +18,9 @@ namespace Othello.Core.Cpu {
         private readonly Random rng;
 
         public Difficulty Difficulty { get; }
+
+        // 알파-베타 가지치기 사용 여부 (끄면 결과는 같고 느려짐, 설계서 3.5 TC-25 검증용)
+        public bool UsePruning { get; init; } = true;
 
         public CPUPlayer(Difficulty difficulty, int? seed = null) {
             Difficulty = difficulty;
@@ -49,7 +48,7 @@ namespace Othello.Core.Cpu {
             IsOnStone me = data.Current;
             var moves = TopMoves(data, me, CandidateMoves);
 
-            // TODO: 자유 착수 카드가 들어오면, 둘 곳이 없을 때 패스 대신 사용 검토
+            // 둘 곳이 없으면 패스 (자유 착수는 최종 12종에 없음)
             if (moves.Count == 0)
                 return GameAction.Pass();
 
@@ -156,7 +155,7 @@ namespace Othello.Core.Cpu {
                             worst = value;
 
                         // 가지치기: 이미 찾은 최선보다 나빠졌으면 나머지 응수는 볼 필요 없음
-                        if (worst.CompareTo(bestValue) <= 0)
+                        if (UsePruning && worst.CompareTo(bestValue) <= 0)
                             break;
                     }
                 }

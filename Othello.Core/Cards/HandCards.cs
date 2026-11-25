@@ -1,4 +1,3 @@
-using System;
 using Othello.Core.Logic;
 using Othello.Core.Model;
 

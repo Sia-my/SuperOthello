@@ -1,6 +1,4 @@
-﻿
-using System;
-using Othello.Core.Cards;
+﻿using Othello.Core.Cards;
 
 namespace Othello.Core.Model {
     // 카드·초능력 데이터 (Data.cs의 partial 확장)

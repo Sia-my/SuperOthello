@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Othello.Core.Model;
 
 namespace Othello.Core.Cards {
@@ -23,13 +20,13 @@ namespace Othello.Core.Cards {
         CardType Type { get; }
         bool NeedsTarget { get; }
 
-        /// <summary>현재 플레이어가 카드를 사용할 수 있는지 확인한다.</summary>
+        /// <summary>현재 플레이어가 지금 쓸 수 있는 카드인지</summary>
         bool CanUse(Data data, IsOnStone user);
 
-        /// <summary>선택 가능한 대상 칸. 대상이 없는 카드는 빈 목록을 반환한다.</summary>
+        /// <summary>선택 가능한 대상 칸 (대상이 없는 카드는 빈 목록)</summary>
         IReadOnlyList<(int Row, int Col)> GetTargets(Data data, IsOnStone user);
 
-        /// <summary>카드 효과를 적용하고 행동 로그용 문장을 반환한다.</summary>
+        /// <summary>카드 효과 적용, 반환값은 행동 로그용 문장</summary>
         string Apply(Data data, IsOnStone user, (int Row, int Col)? target);
     }
 
@@ -54,7 +51,7 @@ namespace Othello.Core.Cards {
         public abstract string Apply(
             Data data, IsOnStone user, (int Row, int Col)? target);
 
-        // 선택한 좌표가 실제 카드 대상 목록에 포함되는지 검사한다.
+        // 선택한 좌표가 카드 대상 목록에 있는지 검사
         protected (int Row, int Col) RequireTarget(
             Data data, IsOnStone user, (int Row, int Col)? target) {
             if (!target.HasValue || !GetTargets(data, user).Contains(target.Value))

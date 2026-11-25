@@ -1,6 +1,4 @@
-﻿
-using System;
-using Othello.Core.Model;
+﻿using Othello.Core.Model;
 
 namespace Othello.Core.Logic {
     // 점수 계산: 착수 점수, 카드 점수, 종료 보너스, 승패

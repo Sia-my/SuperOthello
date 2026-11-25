@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Othello.Core.Cards;
 using Othello.Core.Logic;
 using Othello.Core.Model;
@@ -253,6 +250,9 @@ namespace Othello.Core.Control
                 ? "무승부"
                 : $"{SlotOf(winner).Id} 승리";
 
+            // 행동 로그만으로 최종 점수를 맞춰 볼 수 있게 보너스도 기록 (설계서 2.3 신뢰성)
+            Log($"종료 보너스 - 흑 +{ScoreLogic.FinalBonusOf(Data, IsOnStone.Black)} / " +
+                $"백 +{ScoreLogic.FinalBonusOf(Data, IsOnStone.White)}");
             Log($"게임 종료 - 흑 {Data.Scores[0]} : 백 {Data.Scores[1]} -> {result}");
             StateChanged?.Invoke();
             GameOver?.Invoke(winner);

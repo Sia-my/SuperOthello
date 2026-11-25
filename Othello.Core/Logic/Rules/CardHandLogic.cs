@@ -1,4 +1,3 @@
-using System;
 using Othello.Core.Cards;
 using Othello.Core.Model;
 

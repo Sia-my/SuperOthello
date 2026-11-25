@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 namespace Othello.Core.Cards {
     // 공용 카드 덱
     // - 쓰거나 버린 카드는 Return()으로 되돌린 뒤 다시 섞음

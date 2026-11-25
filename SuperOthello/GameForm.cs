@@ -4,14 +4,12 @@ using Othello.Core.Cpu;
 using Othello.Core.Model;
 using Othello.Core.Logic;
 using Othello.Core.Records;
-using System.Linq;
 
 namespace SuperOthello;
 
-/// <summary>
-/// 게임 화면 (설계서 3.2). 디자이너 없이 코드로 배치했다.
-/// 흐름: 손패 클릭(선택) → 대상 칸 클릭(필요 시) → 착수 칸 클릭.
-/// </summary>
+// 게임 화면 (설계서 3.2, 디자이너 없이 코드로 배치)
+// - 조작: 손패 클릭(선택) → 대상 칸 클릭(필요 시) → 착수 칸 클릭
+// - 상태는 GameController 이벤트로만 받음. CPU 계산은 백그라운드 + 0.7초 연출 지연
 public class GameForm : Form {
     private readonly GameController ctrl;
     private readonly RecordRepository? records;   // null이면 전적 기능 비활성
@@ -98,7 +96,7 @@ public class GameForm : Form {
         if (!s.IsOver && ctrl.CurrentSlot.IsCpu && !cpuThinking) _ = RunCpuTurnAsync();
     }
 
-    /// <summary>양측 손패 공개 (F2-6). 자기 차례인 사람의 손패만 누를 수 있다.</summary>
+    // 양측 손패 공개 (F2-6), 자기 차례인 사람의 손패만 누를 수 있음
     private void BuildHand(IsOnStone owner) {
         var box = handBoxes[ScoreLogic.PlayerIndex(owner)];
         var s = ctrl.Data;
@@ -125,7 +123,7 @@ public class GameForm : Form {
         }
     }
 
-    /// <summary>선택한 패를 적용했다고 가정했을 때 둘 수 있는 칸 (복사본에서 계산).</summary>
+    // 선택한 패를 적용했다고 가정했을 때 둘 수 있는 칸 (복사본에서 계산)
     private List<(int Row, int Col)> MovesAfterSelectedCard() {
         var s = ctrl.Data;
         if (selectedCard == null) return BoardLogic.GetValidMoves(s, s.Current);
@@ -206,7 +204,7 @@ public class GameForm : Form {
 
     // ───────────────────────── 대화상자 ─────────────────────────
 
-    /// <summary>손패 4장 중 버릴 1장 선택 (F2-3).</summary>
+    // 손패 4장 중 버릴 1장 선택 (F2-3)
     private ISkillCard ChooseDiscardDialog(IReadOnlyList<ISkillCard> cards) {
         using var dlg = new Form {
             Text = "버릴 패를 고르세요",

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Othello.Core.Logic;
 using Othello.Core.Model;
 
