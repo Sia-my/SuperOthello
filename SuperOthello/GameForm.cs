@@ -3,6 +3,7 @@ using Othello.Core.Control;
 using Othello.Core.Cpu;
 using Othello.Core.Model;
 using Othello.Core.Logic;
+using Othello.Core.Records;
 using System.Linq;
 
 namespace SuperOthello;
@@ -13,6 +14,7 @@ namespace SuperOthello;
 /// </summary>
 public class GameForm : Form {
     private readonly GameController ctrl;
+    private readonly RecordRepository? records;   // null이면 전적 기능 비활성
     private readonly CPUPlayer?[] cpus = new CPUPlayer?[2];
 
     private readonly BoardControl boardView = new() { Location = new Point(12, 12), Size = new Size(480, 480) };
@@ -32,8 +34,9 @@ public class GameForm : Form {
     private (int Row, int Col)? selectedTarget;
     private bool cpuThinking;
 
-    public GameForm(GameController controller) {
+    public GameForm(GameController controller, RecordRepository? recordRepository = null) {
         ctrl = controller;
+        records = recordRepository;
         Text = "초능력 오셀로";
         ClientSize = new Size(856, 504);
         FormBorderStyle = FormBorderStyle.FixedSingle;
@@ -223,10 +226,27 @@ public class GameForm : Form {
     private void OnGameOver(IsOnStone winner) {
         var s = ctrl.Data;
         string result = winner == IsOnStone.Empty ? "무승부" : $"{ctrl.SlotOf(winner).Id} 승리!";
+
+        // 끝까지 둔 게임만 여기로 옴 (기권은 GameOver 없이 창을 닫음, 설계서 2.5)
+        bool saveFailed = false;
+        if (records != null) {
+            try {
+                records.Save(ctrl.SlotOf(IsOnStone.Black), ctrl.SlotOf(IsOnStone.White), s);
+            }
+            catch (Exception ex) {
+                saveFailed = true;
+                logBox.Items.Add($"전적 저장 실패: {ex.Message}");
+            }
+        }
+
         // TODO: ResultForm으로 교체 (뒤집기 점수 / 남은 돌 보너스 분리 표시)
-        BeginInvoke(new Action(() => MessageBox.Show(
-            $"흑 {s.Scores[0]} : 백 {s.Scores[1]}\n{result}",
-            "게임 결과", MessageBoxButtons.OK, MessageBoxIcon.Information)));
+        BeginInvoke(new Action(() => {
+            if (saveFailed)
+                MessageBox.Show("전적을 저장하지 못했습니다.", "전적 저장", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(
+                $"흑 {s.Scores[0]} : 백 {s.Scores[1]}\n{result}",
+                "게임 결과", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }));
     }
 
     private void OnResign(object? sender, EventArgs e) {

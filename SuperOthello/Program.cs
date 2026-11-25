@@ -1,5 +1,7 @@
+using Othello.Core.Cards;
 using Othello.Core.Control;
 using Othello.Core.Model;
+using Othello.Core.Records;
 
 namespace SuperOthello
 {
@@ -19,7 +21,25 @@ namespace SuperOthello
             var black = PlayerSlot.Human("player1");
             var white = PlayerSlot.Cpu(Difficulty.Normal);
 
-            Application.Run(new GameForm(new GameController(black, white)));
+            Application.Run(new GameForm(new GameController(black, white), OpenRecords()));
+        }
+
+        // 전적 DB 준비. 실패해도 게임은 실행 (전적 기능만 비활성, 설계서 2.5)
+        private static RecordRepository? OpenRecords()
+        {
+            try
+            {
+                var repo = new RecordRepository(RecordRepository.DefaultPath);
+                repo.EnsureCreated();
+                repo.SyncPsionics(CardPool.Current());
+                return repo;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"전적 DB를 열지 못했습니다. 전적은 저장되지 않습니다.\n{ex.Message}",
+                                "전적 DB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return null;
+            }
         }
     }
 }
