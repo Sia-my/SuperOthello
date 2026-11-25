@@ -214,5 +214,75 @@ namespace Othello.Tests {
 
             Assert.IsTrue(sw.ElapsedMilliseconds < 500, $"응답 시간 {sw.ElapsedMilliseconds}ms");
         }
+
+        // ───────────── 추가 카드 판단 (설계서 3.4.4·3.4.5) ─────────────
+
+        // 흑 (2,2) · 백 (2,3) → 흑은 (2,4)에 둠 (1개 뒤집기)
+        private static Data SimpleMoveData() {
+            Data data = EmptyData();
+            BoardLogic.PutStone(data, 2, 2, IsOnStone.Black);
+            BoardLogic.PutStone(data, 2, 3, IsOnStone.White);
+            return data;
+        }
+
+        [TestMethod]
+        public void CPU15_폭탄_상대돌많은_중심선택() {
+            Data data = SimpleMoveData();
+            // 오른쪽 아래 모서리 근처 백 돌 (가중치 100 + 10 + 10)
+            BoardLogic.PutStone(data, 7, 7, IsOnStone.White);
+            BoardLogic.PutStone(data, 7, 5, IsOnStone.White);
+            BoardLogic.PutStone(data, 5, 7, IsOnStone.White);
+
+            var bomb = new BombCard();
+            Assert.IsTrue(CpuCardLogic.TryChooseTarget(data, IsOnStone.Black, bomb, (2, 4), out var target));
+            Assert.AreEqual((6, 6), target, "세 돌을 모두 덮는 중심");
+
+            // 상대 돌을 지우면 착수가 막히고, 나머지는 내 돌만 지우는 판 → 쓰지 않음
+            Data none = SimpleMoveData();
+            Assert.IsFalse(CpuCardLogic.TryChooseTarget(none, IsOnStone.Black, bomb, (2, 4), out _));
+
+            // 고정 돌은 이득 계산에서 제외
+            CellStateLogic.Add(data, 7, 7, CellState.Fixed);
+            Assert.AreEqual(20, CpuCardLogic.BombGain(data, IsOnStone.Black, (6, 6)));
+        }
+
+        [TestMethod]
+        public void CPU16_럭키세븐_7개일때만_사용() {
+            // 흑이 (0,0)에 두면 가로 6개 + 세로 1개 = 7개
+            Data seven = EmptyData();
+            for (int c = 1; c <= 6; c++) BoardLogic.PutStone(seven, 0, c, IsOnStone.White);
+            BoardLogic.PutStone(seven, 0, 7, IsOnStone.Black);
+            BoardLogic.PutStone(seven, 1, 0, IsOnStone.White);
+            BoardLogic.PutStone(seven, 2, 0, IsOnStone.Black);
+            var card = new LuckySevenCard();
+            seven.HandOf(IsOnStone.Black).TryAdd(card);
+            Assert.AreSame(card, CpuCardLogic.ChooseConditionCard(seven, IsOnStone.Black, (0, 0)));
+
+            // 6개면 쓰지 않음
+            Data six = EmptyData();
+            for (int c = 1; c <= 6; c++) BoardLogic.PutStone(six, 0, c, IsOnStone.White);
+            BoardLogic.PutStone(six, 0, 7, IsOnStone.Black);
+            six.HandOf(IsOnStone.Black).TryAdd(new LuckySevenCard());
+            Assert.IsNull(CpuCardLogic.ChooseConditionCard(six, IsOnStone.Black, (0, 0)));
+        }
+
+        [TestMethod]
+        public void CPU17_방패_상대응수가_4개이상일때_사용() {
+            // 백 (7,0) + 흑 (7,1)~(7,n) → 백이 (7,n+1)에 두면 흑 n개 뒤집기
+            Data Build(int n) {
+                Data data = SimpleMoveData();
+                BoardLogic.PutStone(data, 7, 0, IsOnStone.White);
+                for (int c = 1; c <= n; c++) BoardLogic.PutStone(data, 7, c, IsOnStone.Black);
+                data.HandOf(IsOnStone.Black).TryAdd(new ShieldCard());
+                return data;
+            }
+
+            Data four = Build(4);
+            Assert.AreEqual(4, CpuCardLogic.MaxOpponentFlipsAfter(four, IsOnStone.Black, (2, 4)));
+            Assert.IsInstanceOfType(CpuCardLogic.ChooseConditionCard(four, IsOnStone.Black, (2, 4)), typeof(ShieldCard));
+
+            Data three = Build(3);
+            Assert.IsNull(CpuCardLogic.ChooseConditionCard(three, IsOnStone.Black, (2, 4)));
+        }
     }
 }
