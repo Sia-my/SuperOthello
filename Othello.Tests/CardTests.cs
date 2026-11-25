@@ -135,6 +135,97 @@ namespace Othello.Tests {
             Assert.IsFalse(GameStateLogic.IsShielded(original, IsOnStone.Black));
         }
 
+        // ───────────── C형: 약탈·보급·역전의 발판 ─────────────
+
+        // 흑 손패를 원하는 카드로 채운 컨트롤러 (덱은 침묵 8장)
+        private static GameController ControllerWithBlackHand(params ISkillCard[] hand) {
+            var pool = Enumerable.Range(0, 8).Select(_ => (ISkillCard)new SilenceCard()).ToArray();
+            var ctrl = new GameController(PlayerSlot.Human("a"), PlayerSlot.Human("b"), pool, seed: 1);
+
+            Hand black = ctrl.Data.HandOf(IsOnStone.Black);
+            foreach (var c in black.Cards.ToList()) {
+                black.Remove(c);
+                ctrl.Data.Deck.Return(c);
+            }
+            foreach (var c in hand) black.ForceAdd(c);
+            return ctrl;
+        }
+
+        [TestMethod]
+        public void TC07i_약탈_상대손패1장_내손패로() {
+            var plunder = new PlunderCard();
+            var ctrl = ControllerWithBlackHand(plunder);
+            Hand white = ctrl.Data.HandOf(IsOnStone.White);
+            ISkillCard whiteCard = white.Cards[0];
+            int deckBefore = ctrl.Data.Deck.Count;
+
+            Assert.IsTrue(ctrl.TryExecuteTurn(GameAction.WithCard(plunder, null, (2, 3)), out string err), err);
+
+            CollectionAssert.AreEqual(new[] { whiteCard }, ctrl.Data.HandOf(IsOnStone.Black).Cards.ToList());
+            Assert.AreEqual(0, white.Count);
+            Assert.AreEqual(deckBefore + 1, ctrl.Data.Deck.Count, "사용한 약탈은 덱으로");
+
+            // 상대(백) 손패가 없으면 흑은 약탈 사용 불가
+            Assert.IsFalse(new PlunderCard().CanUse(ctrl.Data, IsOnStone.Black));
+        }
+
+        [TestMethod]
+        public void TC07j_보급_손패3장_한도초과분은_덱으로() {
+            var supply = new SupplyCard();
+            var keep1 = new SealCard();
+            var keep2 = new FixCard();
+            var ctrl = ControllerWithBlackHand(supply, keep1, keep2);
+            int deckBefore = ctrl.Data.Deck.Count;
+
+            // 보급을 뺀 2장 + 받을 수 있는 1장 = 3장. 2장 중 1장은 덱으로
+            Assert.IsTrue(ctrl.TryExecuteTurn(GameAction.WithCard(supply, null, (2, 3)), out string err), err);
+
+            Hand black = ctrl.Data.HandOf(IsOnStone.Black);
+            Assert.AreEqual(Hand.MaxSize, black.Count);
+            Assert.IsFalse(black.Cards.Contains(supply));
+            CollectionAssert.IsSubsetOf(new ISkillCard[] { keep1, keep2 }, black.Cards.ToList());
+            Assert.AreEqual(deckBefore, ctrl.Data.Deck.Count, "2장 뽑고 1장 + 보급이 돌아옴");
+
+            // 손패 1장(보급뿐)이면 2장 모두 받음
+            var supply2 = new SupplyCard();
+            var ctrl2 = ControllerWithBlackHand(supply2);
+            Assert.IsTrue(ctrl2.TryExecuteTurn(GameAction.WithCard(supply2, null, (2, 3)), out err), err);
+            Assert.AreEqual(2, ctrl2.Data.HandOf(IsOnStone.Black).Count);
+
+            // 덱이 1장뿐이면 1장만 (예외 없음)
+            Data small = NewGameData();
+            small.Deck = new CardDeck(new ISkillCard[] { new SilenceCard() }, seed: 1);
+            var supply3 = new SupplyCard();
+            small.HandOf(IsOnStone.Black).TryAdd(supply3);
+            Assert.AreEqual("1장 획득", supply3.Apply(small, IsOnStone.Black, null));
+            Assert.AreEqual(0, small.Deck.Count);
+        }
+
+        [TestMethod]
+        public void TC07k_역전의발판_이기고있으면_사용불가() {
+            Data data = NewGameData();
+            data.Deck = new CardDeck(new ISkillCard[] { new SilenceCard(), new SilenceCard(), new SilenceCard() }, seed: 1);
+            var card = new ComebackCard();
+            data.HandOf(IsOnStone.Black).TryAdd(card);
+
+            data.Scores[0] = 5; data.Scores[1] = 3;
+            Assert.IsFalse(card.CanUse(data, IsOnStone.Black), "이기고 있음");
+
+            data.Scores[0] = 3; data.Scores[1] = 3;
+            Assert.IsFalse(card.CanUse(data, IsOnStone.Black), "동점");
+
+            data.Scores[0] = 2; data.Scores[1] = 3;
+            Assert.IsTrue(card.CanUse(data, IsOnStone.Black), "지고 있음");
+
+            // 역전의 발판을 뺀 0장 + 3장 = 3장
+            Assert.AreEqual("3장 획득", card.Apply(data, IsOnStone.Black, null));
+            data.HandOf(IsOnStone.Black).Remove(card);
+            Assert.AreEqual(3, data.HandOf(IsOnStone.Black).Count);
+
+            // 덱이 비면 사용 불가
+            Assert.IsFalse(new ComebackCard().CanUse(data, IsOnStone.Black));
+        }
+
         // ───────────── 도감 값 ─────────────
 
         [TestMethod]
@@ -146,14 +237,18 @@ namespace Othello.Tests {
                 [7] = "없음",                 // 고정
                 [8] = "감점 ÷ 2",             // 방패
                 [9] = "없음",                 // 봉인
+                [10] = "없음",                // 약탈
                 [11] = "없음",                // 침묵
+                [12] = "없음",                // 보급
                 [17] = "사용자 +7",           // 럭키 세븐
-                [19] = "사용자 +n, 상대 -2n"  // 마이너스의 손
+                [19] = "사용자 +n, 상대 -2n", // 마이너스의 손
+                [23] = "없음"                 // 역전의 발판
             };
 
             var cards = new SkillCardBase[] {
                 new ConvertCard(), new DoubleScoreCard(), new FixCard(), new ShieldCard(),
-                new SealCard(), new SilenceCard(), new LuckySevenCard(), new MinusHandCard()
+                new SealCard(), new PlunderCard(), new SilenceCard(), new SupplyCard(),
+                new LuckySevenCard(), new MinusHandCard(), new ComebackCard()
             };
 
             Assert.AreEqual(expected.Count, cards.Length);
