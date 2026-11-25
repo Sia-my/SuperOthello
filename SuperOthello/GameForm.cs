@@ -33,6 +33,7 @@ public class GameForm : Form {
     private ISkillCard? selectedCard;
     private (int Row, int Col)? selectedTarget;
     private bool cpuThinking;
+    private bool resignConfirmed;   // 기권 버튼으로 이미 확인함
 
     public GameForm(GameController controller, RecordRepository? recordRepository = null) {
         ctrl = controller;
@@ -246,12 +247,26 @@ public class GameForm : Form {
             MessageBox.Show(
                 $"흑 {s.Scores[0]} : 백 {s.Scores[1]}\n{result}",
                 "게임 결과", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Close();   // 결과 확인 후 메인 메뉴로
         }));
     }
 
     private void OnResign(object? sender, EventArgs e) {
-        var answer = MessageBox.Show("기권하면 이번 게임은 전적에 기록되지 않습니다. 기권할까요?",
-                                     "기권", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-        if (answer == DialogResult.Yes) Close();
+        if (ConfirmResign()) {
+            resignConfirmed = true;
+            Close();
+        }
     }
+
+    // 게임 중 창 닫기도 기권과 같은 확인 (설계서 2.5)
+    protected override void OnFormClosing(FormClosingEventArgs e) {
+        bool byUser = e.CloseReason is CloseReason.UserClosing or CloseReason.None;   // X·Alt+F4·외부 WM_CLOSE
+        if (byUser && !ctrl.Data.IsOver && !resignConfirmed && !ConfirmResign())
+            e.Cancel = true;
+        base.OnFormClosing(e);
+    }
+
+    private bool ConfirmResign()
+        => MessageBox.Show("기권하면 이번 게임은 전적에 기록되지 않습니다. 기권할까요?",
+                           "기권", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
 }
