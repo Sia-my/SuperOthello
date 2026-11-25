@@ -141,6 +141,7 @@ namespace Othello.Tests {
 
             var expected = pool.GroupBy(c => c.Id).Select(g => g.First()).OrderBy(c => c.Id).ToList();
             var rows = repo.GetPsionics();
+            Assert.AreEqual(12, rows.Count, "최종 12종");
             Assert.AreEqual(expected.Count, rows.Count);
             for (int i = 0; i < rows.Count; i++) {
                 Assert.AreEqual(expected[i].Id, rows[i].Id);

@@ -40,6 +40,61 @@ namespace Othello.Tests {
             return ScoreLogic.OnPlace(data, IsOnStone.Black, flips.Count, whiteShielded);
         }
 
+        // ───────────── A형: 폭탄 ─────────────
+
+        [TestMethod]
+        public void TC07c_폭탄_3x3제거_고정돌은_남음_내돌당_마이너스1() {
+            var data = new Data();
+            BoardLogic.PutStone(data, 2, 2, IsOnStone.Black);
+            BoardLogic.PutStone(data, 2, 3, IsOnStone.Black);
+            BoardLogic.PutStone(data, 3, 3, IsOnStone.White);
+            BoardLogic.PutStone(data, 4, 4, IsOnStone.White);
+            BoardLogic.PutStone(data, 3, 4, IsOnStone.Black);
+            CellStateLogic.Add(data, 3, 4, CellState.Fixed);   // 고정 돌은 남음
+            BoardLogic.PutStone(data, 5, 5, IsOnStone.Black);   // 범위 밖
+
+            var bomb = new BombCard();
+            string log = bomb.Apply(data, IsOnStone.Black, (3, 3));
+
+            foreach (var (r, c) in new[] { (2, 2), (2, 3), (3, 3), (4, 4) })
+                Assert.AreEqual(IsOnStone.Empty, data.Board.Cells[r, c].Stone, $"({r},{c})");
+            Assert.AreEqual(IsOnStone.Black, data.Board.Cells[3, 4].Stone, "고정 돌");
+            Assert.AreEqual(IsOnStone.Black, data.Board.Cells[5, 5].Stone, "범위 밖");
+            Assert.AreEqual(-2, data.Scores[0], "내 돌 2개 제거");
+            Assert.AreEqual(0, data.Scores[1]);
+            StringAssert.Contains(log, "4개 제거");
+
+            // 범위에 고정 돌만 남은 칸은 대상이 아님
+            var targets = bomb.GetTargets(data, IsOnStone.Black);
+            Assert.IsFalse(targets.Contains((2, 5)), "범위 안 돌이 고정 돌(3,4)뿐");
+            Assert.IsTrue(targets.Contains((4, 4)), "빈칸 중심도 가능 (범위에 (5,5))");
+        }
+
+        [TestMethod]
+        public void TC07d_폭탄후_둘곳없으면_카드사용_패스로_진행() {
+            var bomb = new BombCard();
+            var ctrl = ControllerWithBlackHand(bomb);
+
+            // 흑이 둘 곳은 (3,2) 하나뿐. 폭탄으로 (3,3)·(3,4)를 지우면 둘 곳이 사라짐
+            Data data = ctrl.Data;
+            data.Board.Cells = new Cell[Board.Size, Board.Size];
+            BoardLogic.PutStone(data, 3, 3, IsOnStone.White);
+            BoardLogic.PutStone(data, 3, 4, IsOnStone.Black);
+            BoardLogic.PutStone(data, 6, 6, IsOnStone.Black);
+            BoardLogic.PutStone(data, 7, 7, IsOnStone.White);   // 백은 (5,5)에 둘 수 있음
+            CollectionAssert.AreEqual(new[] { (3, 2) }, BoardLogic.GetValidMoves(data, IsOnStone.Black));
+
+            // 카드만 쓰고 착수 칸을 지정하면 거부됨 (둘 곳이 없어짐)
+            Assert.IsFalse(ctrl.TryExecuteTurn(GameAction.WithCard(bomb, (3, 3), (3, 2)), out _));
+
+            // 카드 사용 + 패스로 진행
+            Assert.IsTrue(ctrl.TryExecuteTurn(new GameAction(bomb, (3, 3), null), out string err), err);
+            Assert.IsFalse(ctrl.Data.IsOver);
+            Assert.AreEqual(IsOnStone.White, ctrl.Data.Current);
+            Assert.AreEqual(-1, ctrl.Data.Scores[0], "내 돌 1개 제거");
+            Assert.IsFalse(ctrl.Data.HandOf(IsOnStone.Black).Cards.Contains(bomb));
+        }
+
         // ───────────── B형: 방패·럭키 세븐·마이너스의 손 ─────────────
 
         [TestMethod]
@@ -233,6 +288,7 @@ namespace Othello.Tests {
             // 설계서 표의 "점수 영향" 열 (Id = 후보 번호)
             var expected = new Dictionary<int, string> {
                 [4] = "사용자 -2",            // 전향
+                [5] = "제거된 내 돌 1개당 사용자 -1", // 폭탄
                 [6] = "획득 점수 ×2",         // 점수 2배
                 [7] = "없음",                 // 고정
                 [8] = "감점 ÷ 2",             // 방패
@@ -246,7 +302,7 @@ namespace Othello.Tests {
             };
 
             var cards = new SkillCardBase[] {
-                new ConvertCard(), new DoubleScoreCard(), new FixCard(), new ShieldCard(),
+                new ConvertCard(), new BombCard(), new DoubleScoreCard(), new FixCard(), new ShieldCard(),
                 new SealCard(), new PlunderCard(), new SilenceCard(), new SupplyCard(),
                 new LuckySevenCard(), new MinusHandCard(), new ComebackCard()
             };
@@ -255,10 +311,11 @@ namespace Othello.Tests {
             foreach (var card in cards)
                 Assert.AreEqual(expected[card.Id], card.ScoreEffect, card.Name);
 
-            // 현재 덱의 카드가 모두 확인 대상에 포함되는지
-            CollectionAssert.IsSubsetOf(
-                CardPool.Current().Select(c => c.Id).Distinct().ToList(),
-                expected.Keys.ToList());
+            // 덱은 12종 1장씩이고, 모두 확인 대상에 포함
+            var poolIds = CardPool.Current().Select(c => c.Id).ToList();
+            Assert.AreEqual(12, poolIds.Count);
+            Assert.AreEqual(12, poolIds.Distinct().Count());
+            CollectionAssert.AreEquivalent(expected.Keys.ToList(), poolIds);
         }
     }
 }

@@ -124,6 +124,15 @@ namespace Othello.Core.Logic {
             data.Board.Cells[row, col].Stone = stone;
         }
 
+        // 돌 제거 (제거 가능한 돌만, 고정 돌 등은 그대로). 제거했으면 true
+        public static bool RemoveStone(Data data, int row, int col) {
+            if (!InBounds(row, col) || !CellStateLogic.CanRemove(data.Board.Cells[row, col]))
+                return false;
+
+            data.Board.Cells[row, col].Stone = IsOnStone.Empty;
+            return true;
+        }
+
         // 특정 돌의 개수
         public static int Count(Data data, IsOnStone stone) {
             int count = 0;

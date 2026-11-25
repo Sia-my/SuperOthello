@@ -4,7 +4,8 @@ using Othello.Core.Logic;
 using Othello.Core.Model;
 
 namespace Othello.Core.Cards {
-    // 현재 구현된 카드 5종 (번호 = 설계서 후보 24종 표의 번호)
+    // 기본 카드 5종(전향·점수 2배·고정·봉인·침묵)과 덱 카드 풀 (번호 = 설계서 후보 24종 표의 번호)
+    // - 나머지 7종은 BoardCards.cs(A)·ScoreCards.cs(B)·HandCards.cs(C)
     // - 칸 상태 변경은 CellStateLogic, 점수 변경은 ScoreLogic 사용
 
     /// <summary>4. 전향 (A): 상대 돌 1개를 내 돌로 전향. 모서리 불가, 사용자 -2점.</summary>
@@ -175,23 +176,29 @@ namespace Othello.Core.Cards {
         }
     }
 
-    // 현재 사용 중인 임시 카드 풀
+    // 공용 덱 카드 풀 (F2-1)
     public static class CardPool {
-        /// <summary>임시 덱: 5종 × 2장 = 10장 (최종 12종 확정 후 교체)</summary>
+        /// <summary>최종 12종 × 1장 = 12장 (유형별 4종)</summary>
         public static IEnumerable<ISkillCard> Current()
             => new ISkillCard[]
             {
+                // A 판 변경
                 new ConvertCard(),
-                new DoubleScoreCard(),
+                new BombCard(),
                 new FixCard(),
                 new SealCard(),
-                new SilenceCard(),
 
-                new ConvertCard(),
+                // B 점수
                 new DoubleScoreCard(),
-                new FixCard(),
-                new SealCard(),
-                new SilenceCard()
+                new ShieldCard(),
+                new LuckySevenCard(),
+                new MinusHandCard(),
+
+                // C 운영
+                new PlunderCard(),
+                new SilenceCard(),
+                new SupplyCard(),
+                new ComebackCard()
             };
     }
 }
