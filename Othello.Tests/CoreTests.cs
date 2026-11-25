@@ -144,6 +144,26 @@ namespace Othello.Tests {
         }
 
         [TestMethod]
+        public void TC06b_종료보너스와_최종점수_분리계산() {
+            Data data = NewGameData();
+            data.Scores[0] = 7;    // 종료 전 뒤집기·카드 점수
+            data.Scores[1] = -3;
+            BoardLogic.PutStone(data, 0, 0, IsOnStone.Black);   // 흑 3개, 백 2개
+
+            GameLogic.Finish(data);
+
+            var black = ScoreLogic.BreakdownOf(data, IsOnStone.Black);
+            var white = ScoreLogic.BreakdownOf(data, IsOnStone.White);
+
+            Assert.AreEqual((7, 3, 10), black);
+            Assert.AreEqual((-3, 2, -1), white);
+            Assert.AreEqual(black.Play + black.Bonus, black.Final);
+            Assert.AreEqual(white.Play + white.Bonus, white.Final);
+            Assert.AreEqual(data.Scores[0], black.Final);
+            Assert.AreEqual(data.Scores[1], white.Final);
+        }
+
+        [TestMethod]
         public void TC07_전향_상대돌을_내돌로_사용자_마이너스2() {
             Data data = NewGameData();
 

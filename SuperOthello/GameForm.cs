@@ -35,6 +35,9 @@ public class GameForm : Form {
     private bool cpuThinking;
     private bool resignConfirmed;   // 기권 버튼으로 이미 확인함
 
+    // 결과 화면에서 '다시 하기'를 골랐는지 (창이 닫힌 뒤 MainForm이 확인)
+    public bool ReplayRequested { get; private set; }
+
     public GameForm(GameController controller, RecordRepository? recordRepository = null) {
         ctrl = controller;
         records = recordRepository;
@@ -225,14 +228,15 @@ public class GameForm : Form {
     }
 
     private void OnGameOver(IsOnStone winner) {
-        var s = ctrl.Data;
-        string result = winner == IsOnStone.Empty ? "무승부" : $"{ctrl.SlotOf(winner).Id} 승리!";
+        var black = ctrl.SlotOf(IsOnStone.Black);
+        var white = ctrl.SlotOf(IsOnStone.White);
 
         // 끝까지 둔 게임만 여기로 옴 (기권은 GameOver 없이 창을 닫음, 설계서 2.5)
+        // 전적 저장은 결과 화면보다 먼저
         bool saveFailed = false;
         if (records != null) {
             try {
-                records.Save(ctrl.SlotOf(IsOnStone.Black), ctrl.SlotOf(IsOnStone.White), s);
+                records.Save(black, white, ctrl.Data);
             }
             catch (Exception ex) {
                 saveFailed = true;
@@ -240,14 +244,13 @@ public class GameForm : Form {
             }
         }
 
-        // TODO: ResultForm으로 교체 (뒤집기 점수 / 남은 돌 보너스 분리 표시)
         BeginInvoke(new Action(() => {
             if (saveFailed)
                 MessageBox.Show("전적을 저장하지 못했습니다.", "전적 저장", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            MessageBox.Show(
-                $"흑 {s.Scores[0]} : 백 {s.Scores[1]}\n{result}",
-                "게임 결과", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            Close();   // 결과 확인 후 메인 메뉴로
+
+            using var result = new ResultForm(ctrl.Data, black, white);
+            ReplayRequested = result.ShowDialog(this) == DialogResult.Retry;
+            Close();   // 다시 하기는 MainForm이 같은 설정으로 새 게임을 엶
         }));
     }
 

@@ -1,4 +1,5 @@
 using Othello.Core.Control;
+using Othello.Core.Model;
 using Othello.Core.Records;
 
 namespace SuperOthello;
@@ -47,10 +48,18 @@ public class MainForm : Form {
         if (setup.ShowDialog(this) != DialogResult.OK)
             return;
 
-        var game = new GameForm(new GameController(setup.Black, setup.White), records) {
+        StartGame(setup.Black, setup.White);
+    }
+
+    // 게임 창을 열고 메뉴는 숨김. 다시 하기면 같은 슬롯으로 새 게임
+    private void StartGame(PlayerSlot black, PlayerSlot white) {
+        var game = new GameForm(new GameController(black, white), records) {
             StartPosition = FormStartPosition.CenterScreen
         };
-        game.FormClosed += (_, _) => Show();
+        game.FormClosed += (_, _) => {
+            if (game.ReplayRequested) StartGame(black, white);
+            else Show();
+        };
         Hide();
         game.Show();
     }

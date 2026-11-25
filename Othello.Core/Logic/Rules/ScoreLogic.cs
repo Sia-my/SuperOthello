@@ -52,11 +52,19 @@ namespace Othello.Core.Logic {
 
         // 종료 보너스: 남은 자기 돌 수만큼 가산
         public static void ApplyFinalBonus(Data data) {
-            data.Scores[0] +=
-                BoardLogic.Count(data, IsOnStone.Black);
+            data.Scores[0] += FinalBonusOf(data, IsOnStone.Black);
+            data.Scores[1] += FinalBonusOf(data, IsOnStone.White);
+        }
 
-            data.Scores[1] +=
-                BoardLogic.Count(data, IsOnStone.White);
+        // 종료 보너스 값 (판에 남은 자기 돌 수, 종료 후엔 판이 바뀌지 않음)
+        public static int FinalBonusOf(Data data, IsOnStone who)
+            => BoardLogic.Count(data, who);
+
+        // 결과 화면용 분리 점수: 뒤집기·카드 점수 + 보너스 = 최종 점수 (F3-3·F3-4)
+        public static (int Play, int Bonus, int Final) BreakdownOf(Data data, IsOnStone who) {
+            int final = data.Scores[PlayerIndex(who)];
+            int bonus = data.IsOver ? FinalBonusOf(data, who) : 0;
+            return (final - bonus, bonus, final);
         }
 
         // 승패 판정 (무승부는 Empty)
