@@ -191,5 +191,28 @@ namespace Othello.Tests {
                 Assert.IsTrue(ok, $"{turn}턴: {err}");
             }
         }
+
+        [TestMethod]
+        public void CPU14_어려움_한수_0_5초_이내() {
+            // 20턴 진행한 중반 판에서 어려움 CPU 한 수가 500ms 미만 (설계서 2.3)
+            var ctrl = new GameController(
+                PlayerSlot.Cpu(Difficulty.Hard), PlayerSlot.Human("b"), seed: 3);
+            var cpu = new CPUPlayer(Difficulty.Hard, seed: 3);
+            var other = new CPUPlayer(Difficulty.Normal, seed: 4);
+
+            for (int turn = 0; turn < 20 && !ctrl.Data.IsOver; turn++) {
+                CPUPlayer who = ctrl.Data.Current == IsOnStone.Black ? cpu : other;
+                Assert.IsTrue(ctrl.TryExecuteTurn(who.ChooseAction(ctrl.Data.Clone()), out string err),
+                    $"{turn}턴: {err}");
+            }
+            Assert.IsFalse(ctrl.Data.IsOver, "20턴 안에 게임이 끝나 중반 판이 아님");
+
+            Data snapshot = ctrl.Data.Clone();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            cpu.ChooseAction(snapshot);
+            sw.Stop();
+
+            Assert.IsTrue(sw.ElapsedMilliseconds < 500, $"응답 시간 {sw.ElapsedMilliseconds}ms");
+        }
     }
 }
