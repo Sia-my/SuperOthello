@@ -1,18 +1,21 @@
-using Othello.Core.Logic;
+﻿using Othello.Core.Logic;
 using Othello.Core.Model;
 
 namespace Othello.Core.Cards {
-    // 기본 카드 5종(전향·점수 2배·고정·봉인·침묵)과 덱 카드 풀 (번호 = 설계서 후보 24종 표의 번호)
-    // - 나머지 7종은 BoardCards.cs(A)·ScoreCards.cs(B)·HandCards.cs(C)
+    // 기본 카드 4종(전향·점수 2배·고정·침묵)과 덱 카드 풀 (번호 = 설계서 후보 24종 표의 번호)
+    // - 나머지 8종은 BoardCards.cs(A)·ScoreCards.cs(B)·HandCards.cs(C)
     // - 칸 상태 변경은 CellStateLogic, 점수 변경은 ScoreLogic 사용
 
     /// <summary>4. 전향 (A): 상대 돌 1개를 내 돌로 전향. 모서리 불가, 사용자 -2점.</summary>
     public sealed class ConvertCard : SkillCardBase {
         public override int Id => 4;
         public override string Name => "전향";
-        public override string Description => "상대 돌 1개를 내 돌로 바꾼다 (모서리 불가, 사용자 -2점)";
+        public override string Description => "첫 턴에는 사용 불가. 상대 돌 1개를 내 돌로 바꾼다 (모서리 불가, 사용자 -2점)";
         public override CardType Type => CardType.A;
         public override string ScoreEffect => "사용자 -2";
+
+        public override bool CanUse(Data data, IsOnStone user)
+            => data.TurnNumber > 1 && base.CanUse(data, user);
 
         private static bool IsCorner(int row, int col)
             => (row == 0 || row == Board.Size - 1)
@@ -111,47 +114,6 @@ namespace Othello.Core.Cards {
         }
     }
 
-    /// <summary>9. 봉인 (A): 빈칸 하나를 3턴 동안 착수 불가 상태로 만든다.</summary>
-    public sealed class SealCard : SkillCardBase {
-        // 양쪽 턴을 모두 셈: 내 턴 끝 2 → 상대 턴 끝 1 → 내 턴 끝 0(해제)
-        public const byte SealDuration = 3;
-
-        public override int Id => 9;
-        public override string Name => "봉인";
-        public override string Description => "빈칸 1개를 3턴 동안 아무도 둘 수 없게 막는다";
-        public override CardType Type => CardType.A;
-        public override string ScoreEffect => "없음";
-
-        public override IReadOnlyList<(int Row, int Col)> GetTargets(
-            Data data, IsOnStone user) {
-            var targets = new List<(int Row, int Col)>();
-
-            for (int row = 0; row < Board.Size; row++) {
-                for (int col = 0; col < Board.Size; col++) {
-                    if (CellStateLogic.CanPlace(
-                        data.Board.Cells[row, col])) {
-                        targets.Add((row, col));
-                    }
-                }
-            }
-
-            return targets;
-        }
-
-        public override string Apply(
-            Data data, IsOnStone user,
-            (int Row, int Col)? target) {
-            var (row, col) = RequireTarget(data, user, target);
-
-            CellStateLogic.Add(
-                data, row, col, CellState.Sealed);
-
-            data.Board.Cells[row, col].SealTurns = SealDuration;
-
-            return $"({row},{col}) 칸을 {SealDuration}턴 봉인";
-        }
-    }
-
     /// <summary>11. 침묵 (C): 상대는 다음 턴에 카드 사용 불가</summary>
     public sealed class SilenceCard : SkillCardBase {
         public override int Id => 11;
@@ -184,19 +146,19 @@ namespace Othello.Core.Cards {
                 new ConvertCard(),
                 new BombCard(),
                 new FixCard(),
-                new SealCard(),
+                new GiftCard(),
 
                 // B 점수
                 new DoubleScoreCard(),
                 new ShieldCard(),
-                new LuckySevenCard(),
+                new OmokCard(),
                 new MinusHandCard(),
 
                 // C 운영
                 new PlunderCard(),
                 new SilenceCard(),
                 new SupplyCard(),
-                new ComebackCard()
+                new BlackKnightCard()
             };
     }
 }

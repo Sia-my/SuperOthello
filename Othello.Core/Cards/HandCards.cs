@@ -2,7 +2,7 @@ using Othello.Core.Logic;
 using Othello.Core.Model;
 
 namespace Othello.Core.Cards {
-    // C형(운영) 카드: 약탈·보급·역전의 발판 (번호 = 설계서 2.2 후보 표)
+    // C형(운영) 카드: 약탈·보급·흑기사 (번호 = 설계서 2.2 후보 표)
     // - 손패 받기는 CardHandLogic.DrawForCard 하나로 처리 (사용 중인 카드 1장은 한도에서 제외)
 
     /// <summary>10. 약탈 (C): 상대 손패 1장을 무작위로 가져온다.</summary>
@@ -51,27 +51,19 @@ namespace Othello.Core.Cards {
         }
     }
 
-    /// <summary>23. 역전의 발판 (C): 지고 있을 때만, 덱에서 3장 드로우 (한도 초과분은 덱으로).</summary>
-    public sealed class ComebackCard : SkillCardBase {
-        public const int DrawCount = 3;
-
-        public override int Id => 23;
-        public override string Name => "역전의 발판";
-        public override string Description => "점수가 지고 있을 때만 쓸 수 있다. 덱에서 3장을 뽑는다 (손패 한도를 넘는 패는 버림)";
+    /// <summary>20. 흑기사 (C): 상대의 다음 차례를 무작위 합법 착수로 강제하고 카드 사용 금지.</summary>
+    public sealed class BlackKnightCard : SkillCardBase {
+        public override int Id => 20;
+        public override string Name => "흑기사";
+        public override string Description => "상대의 다음 차례에 카드 사용을 금지하고, 합법적인 칸 중 하나에 무작위로 자동 착수하게 만든다";
         public override CardType Type => CardType.C;
         public override string ScoreEffect => "없음";
         public override bool NeedsTarget => false;
 
-        public override bool CanUse(Data data, IsOnStone user)
-            => IsBehind(data, user) && data.Deck.Count > 0;
-
-        public static bool IsBehind(Data data, IsOnStone user)
-            => data.Scores[ScoreLogic.PlayerIndex(user)]
-               < data.Scores[ScoreLogic.PlayerIndex(GameLogic.Opponent(user))];
-
         public override string Apply(Data data, IsOnStone user, (int Row, int Col)? target) {
-            int got = CardHandLogic.DrawForCard(data, user, DrawCount, this);
-            return $"{got}장 획득";
+            GameStateLogic.SetForcedRandomMove(data, GameLogic.Opponent(user), true);
+            return "상대 다음 차례 무작위 착수 강제 (카드 사용 불가)";
         }
     }
+
 }

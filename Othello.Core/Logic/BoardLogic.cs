@@ -3,7 +3,7 @@ using Othello.Core.Model;
 namespace Othello.Core.Logic {
     // 오셀로 기본 규칙: 초기 배치, 뒤집기 계산, 착수, 돌 개수
     // - 좌표는 (Row, Col) 튜플
-    // - 착수·뒤집기 가능 여부는 CellStateLogic 판정을 따름 (봉인·고정 반영)
+    // - 착수·뒤집기 가능 여부는 CellStateLogic 판정을 따름 (고정 효과 반영)
 
     public static class BoardLogic {
         // 오셀로의 8방향
@@ -72,6 +72,27 @@ namespace Othello.Core.Logic {
             }
 
             return result;
+        }
+
+        // 이번 착수에서 한 방향으로 실제 뒤집히는 돌의 최대 연속 개수 (오목 카드용).
+        // 고정 돌처럼 뒤집히지 않는 돌은 연속 개수에 포함하지 않는다.
+        public static int MaxFlipsInLine(Data data, int row, int col, IsOnStone stone) {
+            var flips = GetFlips(data, row, col, stone);
+            if (flips.Count == 0) return 0;
+
+            var flipSet = new HashSet<(int Row, int Col)>(flips);
+            int max = 0;
+            foreach (var (dr, dc) in Directions) {
+                int count = 0;
+                int r = row + dr, c = col + dc;
+                while (flipSet.Contains((r, c))) {
+                    count++;
+                    r += dr;
+                    c += dc;
+                }
+                max = Math.Max(max, count);
+            }
+            return max;
         }
 
         // 착수 가능한 위치 목록

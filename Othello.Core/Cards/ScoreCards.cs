@@ -2,7 +2,7 @@ using Othello.Core.Logic;
 using Othello.Core.Model;
 
 namespace Othello.Core.Cards {
-    // B형(점수) 카드: 방패·럭키 세븐·마이너스의 손 (번호 = 설계서 2.2 후보 표)
+    // B형(점수) 카드: 방패·오목·마이너스의 손 (번호 = 설계서 2.2 후보 표)
     // - 카드는 플래그만 켜고 점수 계산은 ScoreLogic.OnPlace가 담당
 
     /// <summary>8. 방패 (B): 상대의 다음 턴 동안 받는 감점 절반(내림).</summary>
@@ -21,18 +21,18 @@ namespace Othello.Core.Cards {
         }
     }
 
-    /// <summary>17. 럭키 세븐 (B): 이번 착수로 정확히 7개를 뒤집으면 +7점.</summary>
-    public sealed class LuckySevenCard : SkillCardBase {
-        public override int Id => 17;
-        public override string Name => "럭키 세븐";
-        public override string Description => "이번 착수로 정확히 7개를 뒤집으면 +7점을 더 얻는다";
+    /// <summary>18. 오목 (B): 이번 착수에서 한 방향으로 5개 이상 뒤집으면 +5점.</summary>
+    public sealed class OmokCard : SkillCardBase {
+        public override int Id => 18;
+        public override string Name => "오목";
+        public override string Description => "이번 착수에서 한 방향으로 돌 5개 이상을 뒤집으면 5점을 추가로 얻는다";
         public override CardType Type => CardType.B;
-        public override string ScoreEffect => "사용자 +7";
+        public override string ScoreEffect => "조건 충족 시 사용자 +5";
         public override bool NeedsTarget => false;
 
         public override string Apply(Data data, IsOnStone user, (int Row, int Col)? target) {
-            data.TurnLuckySeven = true;
-            return "이번 착수가 정확히 7개면 +7점";
+            data.TurnOmok = true;
+            return "한 방향으로 5개 이상 뒤집으면 +5점";
         }
     }
 

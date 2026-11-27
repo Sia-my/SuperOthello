@@ -14,6 +14,7 @@ namespace Othello.Core.Control
         public const int DrawThreshold = 3;
 
         private readonly PlayerSlot[] slots;
+        private readonly Random forcedMoveRandom;
 
         public Data Data { get; }
         public (int Row, int Col)? LastMove { get; private set; }
@@ -40,6 +41,7 @@ namespace Othello.Core.Control
                 throw new ArgumentException("CPU vs CPU는 지원하지 않습니다.");
 
             slots = new[] { black, white };
+            forcedMoveRandom = seed.HasValue ? new Random(seed.Value) : new Random();
             Data = new Data();
             GameLogic.Reset(Data);
 
@@ -65,13 +67,15 @@ namespace Othello.Core.Control
         {
             Log($"게임 시작: 흑 {slots[0].Id} vs 백 {slots[1].Id}");
             SkipTurnsWithoutMoves();
-            StateChanged?.Invoke();
+            ResolveForcedTurns();
+            if (!Data.IsOver) StateChanged?.Invoke();
         }
 
         // 지금 이 카드를 쓸 수 있는가 (침묵이면 불가)
         public bool CanUseCard(ISkillCard card)
             => !Data.IsOver
                && !GameStateLogic.IsSilenced(Data, Data.Current)
+               && !GameStateLogic.IsForcedRandomMove(Data, Data.Current)
                && Data.HandOf(Data.Current).Cards.Contains(card)
                && card.CanUse(Data, Data.Current);
 
@@ -83,6 +87,12 @@ namespace Othello.Core.Control
             if (Data.IsOver)
             {
                 error = "게임이 이미 끝났습니다.";
+                return false;
+            }
+
+            if (GameStateLogic.IsForcedRandomMove(Data, Data.Current))
+            {
+                error = "흑기사 효과로 이번 차례는 자동 착수합니다.";
                 return false;
             }
 
@@ -137,6 +147,8 @@ namespace Othello.Core.Control
             if (action.Move.HasValue)
             {
                 (int Row, int Col) move = action.Move.Value;
+                bool omok = BoardLogic.MaxFlipsInLine(data, move.Row, move.Col, me)
+                    >= ScoreLogic.OmokLineFlips;
                 List<(int Row, int Col)> flips =
                     BoardLogic.Place(data, move.Row, move.Col, me);
 
@@ -144,7 +156,7 @@ namespace Othello.Core.Control
                     data, GameLogic.Opponent(me));
 
                 var (gain, penalty) = ScoreLogic.OnPlace(
-                    data, me, flips.Count, opponentShielded);
+                    data, me, flips.Count, opponentShielded, omok);
 
                 GameLogic.RegisterMove(data);
 
@@ -222,6 +234,7 @@ namespace Othello.Core.Control
             }
 
             SkipTurnsWithoutMoves();
+            ResolveForcedTurns();
             if (!Data.IsOver)
                 StateChanged?.Invoke();
         }
@@ -231,12 +244,49 @@ namespace Othello.Core.Control
             if (!GameLogic.TryAutoPass(Data, out IsOnStone passed))
                 return;
 
+            // 자동 패스한 차례에 걸려 있던 흑기사 강제 착수는 소멸한다.
+            GameStateLogic.SetForcedRandomMove(Data, passed, false);
             Log($"{Tag(passed)} 둘 곳이 없어 자동 패스");
 
             if (GameLogic.BothPlayersCannotMove(Data))
             {
                 Log("양측 모두 둘 곳이 없습니다.");
                 Finish();
+            }
+        }
+
+        // 흑기사: 상대의 다음 차례는 사람/CPU 여부와 관계없이 자동으로 무작위 합법 착수.
+        // 실제 게임 상태에 적용하여 점수·카드 획득·턴 종료도 평소와 동일하게 수행한다.
+        private void ResolveForcedTurns()
+        {
+            while (!Data.IsOver && GameStateLogic.IsForcedRandomMove(Data, Data.Current))
+            {
+                IsOnStone forcedPlayer = Data.Current;
+                var moves = BoardLogic.GetValidMoves(Data, forcedPlayer);
+                if (moves.Count == 0)
+                {
+                    GameStateLogic.SetForcedRandomMove(Data, forcedPlayer, false);
+                    SkipTurnsWithoutMoves();
+                    break;
+                }
+
+                var move = moves[forcedMoveRandom.Next(moves.Count)];
+                Log($"{Tag(forcedPlayer)} [흑기사] 카드 사용 불가, ({move.Row},{move.Col}) 무작위 강제 착수");
+                Apply(Data, GameAction.Place(move), log: true);
+
+                // 강제 착수한 플레이어의 턴을 정상 종료한다.
+                IsOnStone endedPlayer = Data.Current;
+                CellStateLogic.ProcessTurnEnd(Data);
+                GameStateLogic.ProcessTurnEnd(Data, endedPlayer);
+                GameLogic.EndTurn(Data);
+
+                if (GameLogic.ShouldFinish(Data))
+                {
+                    Finish();
+                    break;
+                }
+
+                SkipTurnsWithoutMoves();
             }
         }
 

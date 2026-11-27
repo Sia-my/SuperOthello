@@ -1,4 +1,4 @@
-using Othello.Core.Cards;
+﻿using Othello.Core.Cards;
 using Othello.Core.Records;
 
 namespace SuperOthello;

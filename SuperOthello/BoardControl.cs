@@ -84,23 +84,6 @@ public class BoardControl : Control {
                     CellRect(p.Row, p.Col));
         }
 
-        // 봉인된 칸: 빗금
-        using (var hatch = new HatchBrush(
-            HatchStyle.WideUpwardDiagonal,
-            Color.FromArgb(150, 0, 0, 0),
-            Color.Transparent)) {
-            for (int row = 0; row < Board.Size; row++) {
-                for (int col = 0; col < Board.Size; col++) {
-                    if (CellStateLogic.Has(
-                        cells[row, col], CellState.Sealed)) {
-                        g.FillRectangle(
-                            hatch,
-                            CellRect(row, col));
-                    }
-                }
-            }
-        }
-
         // 격자
         using (var pen = new Pen(LineColor, 1.5f)) {
             for (int i = 0; i <= Board.Size; i++) {

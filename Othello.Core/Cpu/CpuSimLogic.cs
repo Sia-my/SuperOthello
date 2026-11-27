@@ -24,21 +24,22 @@ namespace Othello.Core.Cpu {
                 data.HandOf(me).Remove(card);
             }
 
-            // 카드 효과로 착수 칸이 막혔을 수 있음 (봉인, 전향 등)
+            // 카드 효과로 착수 칸이 막혔을 수 있음 (선물, 전향 등)
             if (BoardLogic.GetFlips(data, cand.Move.Row, cand.Move.Col, me).Count == 0)
                 return false;
 
             PlaceAndScore(data, cand.Move, me);
-            ScoreLogic.ResetTurnModifiers(data);   // 점수 2배·럭키 세븐·마이너스의 손은 이번 착수에만
+            ScoreLogic.ResetTurnModifiers(data);   // 점수 2배·오목·마이너스의 손은 이번 착수에만
             return true;
         }
 
         // 착수 + 점수 반영. 뒤집은 개수 반환
         public static int PlaceAndScore(Data data, (int Row, int Col) move, IsOnStone mover) {
+            bool omok = BoardLogic.MaxFlipsInLine(data, move.Row, move.Col, mover) >= ScoreLogic.OmokLineFlips;
             List<(int Row, int Col)> flips = BoardLogic.Place(data, move.Row, move.Col, mover);
             bool opponentShielded = GameStateLogic.IsShielded(data, GameLogic.Opponent(mover));
 
-            ScoreLogic.OnPlace(data, mover, flips.Count, opponentShielded);
+            ScoreLogic.OnPlace(data, mover, flips.Count, opponentShielded, omok);
             return flips.Count;
         }
     }

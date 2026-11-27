@@ -2,8 +2,8 @@
 using Othello.Core.Model;
 
 namespace Othello.Core.Logic {
-    // GameStateLogic의 초능력 부분 (침묵·방패)
-    // - 턴 종료 시 침묵·방패 해제
+    // GameStateLogic의 초능력 부분 (침묵·방패·흑기사)
+    // - 턴 종료 시 침묵·방패·흑기사 해제
 
     public static partial class GameStateLogic {
         // 침묵 상태인가 (카드 사용 불가)
@@ -24,6 +24,13 @@ namespace Othello.Core.Logic {
             Data data, IsOnStone player, bool enabled)
             => data.StatusOf(player).Shielded = enabled;
 
+        // 흑기사 상태: 다음 차례에 카드 없이 임의의 합법 착수 강제
+        public static bool IsForcedRandomMove(Data data, IsOnStone player)
+            => data.StatusOf(player).ForcedRandomMove;
+
+        public static void SetForcedRandomMove(Data data, IsOnStone player, bool enabled)
+            => data.StatusOf(player).ForcedRandomMove = enabled;
+
         // 전체 초기화 시 플레이어 상태도 초기화
         static partial void AfterCardStatesCleared(Data data) {
             for (int i = 0; i < data.Status.Length; i++)
@@ -35,6 +42,7 @@ namespace Othello.Core.Logic {
             Data data, IsOnStone endedPlayer) {
             // 내 침묵은 내 턴이 끝나면 풀림
             data.StatusOf(endedPlayer).Silenced = false;
+            data.StatusOf(endedPlayer).ForcedRandomMove = false;
 
             // 상대 방패는 내 턴 동안만 유효
             IsOnStone opponent =

@@ -244,23 +244,19 @@ namespace Othello.Tests {
         }
 
         [TestMethod]
-        public void CPU16_럭키세븐_7개일때만_사용() {
-            // 흑이 (0,0)에 두면 가로 6개 + 세로 1개 = 7개
-            Data seven = EmptyData();
-            for (int c = 1; c <= 6; c++) BoardLogic.PutStone(seven, 0, c, IsOnStone.White);
-            BoardLogic.PutStone(seven, 0, 7, IsOnStone.Black);
-            BoardLogic.PutStone(seven, 1, 0, IsOnStone.White);
-            BoardLogic.PutStone(seven, 2, 0, IsOnStone.Black);
-            var card = new LuckySevenCard();
-            seven.HandOf(IsOnStone.Black).TryAdd(card);
-            Assert.AreSame(card, CpuCardLogic.ChooseConditionCard(seven, IsOnStone.Black, (0, 0)));
+        public void CPU16_오목_한방향5개이상일때만_사용() {
+            Data five = EmptyData();
+            for (int c = 1; c <= 5; c++) BoardLogic.PutStone(five, 0, c, IsOnStone.White);
+            BoardLogic.PutStone(five, 0, 6, IsOnStone.Black);
+            var card = new OmokCard();
+            five.HandOf(IsOnStone.Black).TryAdd(card);
+            Assert.AreSame(card, CpuCardLogic.ChooseConditionCard(five, IsOnStone.Black, (0, 0)));
 
-            // 6개면 쓰지 않음
-            Data six = EmptyData();
-            for (int c = 1; c <= 6; c++) BoardLogic.PutStone(six, 0, c, IsOnStone.White);
-            BoardLogic.PutStone(six, 0, 7, IsOnStone.Black);
-            six.HandOf(IsOnStone.Black).TryAdd(new LuckySevenCard());
-            Assert.IsNull(CpuCardLogic.ChooseConditionCard(six, IsOnStone.Black, (0, 0)));
+            Data four = EmptyData();
+            for (int c = 1; c <= 4; c++) BoardLogic.PutStone(four, 0, c, IsOnStone.White);
+            BoardLogic.PutStone(four, 0, 5, IsOnStone.Black);
+            four.HandOf(IsOnStone.Black).TryAdd(new OmokCard());
+            Assert.IsNull(CpuCardLogic.ChooseConditionCard(four, IsOnStone.Black, (0, 0)));
         }
 
         [TestMethod]

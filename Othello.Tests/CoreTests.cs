@@ -91,18 +91,15 @@ namespace Othello.Tests {
         }
 
         [TestMethod]
-        public void TC03b_봉인칸에는_둘_수_없음() {
+        public void TC03b_선물은_내돌만_대상이고_고정돌은_제외() {
             Data data = NewGameData();
+            var gift = new GiftCard();
+            var targets = gift.GetTargets(data, IsOnStone.Black);
+            CollectionAssert.AreEquivalent(new[] { (3, 4), (4, 3) }, targets.ToArray());
 
-            CellStateLogic.Add(
-                data, 2, 3, CellState.Sealed);
-
-            data.Board.Cells[2, 3].SealTurns = 3;
-
-            var moves = BoardLogic.GetValidMoves(
-                data, IsOnStone.Black);
-
-            Assert.IsFalse(moves.Contains((2, 3)));
+            CellStateLogic.Add(data, 3, 4, CellState.Fixed);
+            Assert.IsFalse(gift.GetTargets(data, IsOnStone.Black).Contains((3, 4)));
+            Assert.IsTrue(gift.GetTargets(data, IsOnStone.Black).Contains((4, 3)));
         }
 
         [TestMethod]
@@ -176,27 +173,14 @@ namespace Othello.Tests {
         }
 
         [TestMethod]
-        public void TC07b_봉인_3턴뒤_해제() {
+        public void TC07b_선물_내돌을_상대돌로_바꾸고_1점획득() {
             Data data = NewGameData();
+            var gift = new GiftCard();
+            gift.Apply(data, IsOnStone.Black, (3, 4));
 
-            new SealCard().Apply(
-                data, IsOnStone.Black, (0, 0));
-
-            for (int i = 0; i < SealCard.SealDuration; i++) {
-                Assert.IsTrue(
-                    CellStateLogic.Has(
-                        data, 0, 0, CellState.Sealed));
-
-                CellStateLogic.ProcessTurnEnd(data);
-            }
-
-            Assert.IsFalse(
-                CellStateLogic.Has(
-                    data, 0, 0, CellState.Sealed));
-
-            Assert.AreEqual(
-                (byte)0,
-                data.Board.Cells[0, 0].SealTurns);
+            Assert.AreEqual(IsOnStone.White, data.Board.Cells[3, 4].Stone);
+            Assert.AreEqual(1, data.Scores[0]);
+            Assert.AreEqual(0, data.Scores[1]);
         }
 
         [TestMethod]
@@ -415,7 +399,7 @@ namespace Othello.Tests {
             var human = ControllerWithBoard(null, stones);
             Hand hand = human.Data.HandOf(IsOnStone.Black);
             hand.TryAdd(new FixCard());
-            hand.TryAdd(new SealCard());
+            hand.TryAdd(new GiftCard());
             ISkillCard toDiscard = hand.Cards[1];
             int offered = 0;
             human.ChooseDiscard = cards => { offered = cards.Count; return toDiscard; };
@@ -431,7 +415,7 @@ namespace Othello.Tests {
             var cpu = ControllerWithBoard(PlayerSlot.Cpu(Difficulty.Normal), stones);
             Hand cpuHand = cpu.Data.HandOf(IsOnStone.Black);
             cpuHand.TryAdd(new FixCard());
-            cpuHand.TryAdd(new SealCard());
+            cpuHand.TryAdd(new GiftCard());
             var kept = cpuHand.Cards.ToList();
             deck = cpu.Data.Deck.Count;
 
@@ -445,6 +429,7 @@ namespace Othello.Tests {
             // 설계서 2.3 신뢰성: 착수 로그(+획득 / 상대 -감점) + 카드 로그(-n점) + 종료 보너스 = 최종 점수
             var place = new System.Text.RegularExpressions.Regex(@"^\[\d+턴\] (흑|백) \(\d,\d\) 착수, \d+개 뒤집음 \(\+(\d+) / 상대 -(\d+)\)$");
             var card = new System.Text.RegularExpressions.Regex(@"^\[\d+턴\] (흑|백) \[.+\] .*\(-(\d+)점\)$");
+            var gift = new System.Text.RegularExpressions.Regex(@"^\[\d+턴\] (흑|백) \[선물\] .*\(\+(\d+)점\)$");
             var bonus = new System.Text.RegularExpressions.Regex(@"^종료 보너스 - 흑 \+(\d+) / 백 \+(\d+)$");
 
             for (int seed = 0; seed < 30; seed++) {
@@ -466,6 +451,12 @@ namespace Othello.Tests {
                         sum[m.Groups[1].Value == "흑" ? 0 : 1] -= int.Parse(m.Groups[2].Value);
                         return;
                     }
+                    m = gift.Match(msg);
+                    if (m.Success) {
+                        sum[m.Groups[1].Value == "흑" ? 0 : 1] += int.Parse(m.Groups[2].Value);
+                        return;
+                    }
+
                     m = bonus.Match(msg);
                     if (m.Success) {
                         sum[0] += int.Parse(m.Groups[1].Value);
