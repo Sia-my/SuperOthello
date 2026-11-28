@@ -13,12 +13,12 @@ namespace Othello.Core.Cpu {
         public const int DoubleScoreMinFlips = 5;
         public const int SilenceMinOpponentHand = 2;
         public const int ShieldMinOpponentFlips = 4;   // 상대 응수가 내 돌을 이만큼 뒤집을 수 있으면 방패
-        public const int LuckySevenFlips = ScoreLogic.LuckySevenFlips;
+        public const int OmokLineFlips = ScoreLogic.OmokLineFlips;
         public const int MinusHandMinFlips = 4;
         public const int PlunderMaxMyHand = 2;         // 약탈 포함 내 손패 장수
         public const int SupplyMaxOtherCards = 1;      // 보급을 뺀 내 손패 장수
         public const int SupplyMinDeck = 2;
-        public const int ComebackMaxHandEnd = 2;       // 종반: 역전의 발판 포함 손패 장수
+        public const int BlackKnightMinOpponentMoves = 2; // 상대 선택지가 둘 이상일 때
 
         // A형 카드의 대표 대상 선택. 쓸 이유가 없거나 대상이 없으면 false
         public static bool TryChooseTarget(
@@ -44,16 +44,17 @@ namespace Othello.Core.Cpu {
                 // 고정: 이미 확정돌인 돌은 고정할 필요 없음
                 FixCard => targets.Where(t => !StabilityLogic.IsStable(data, t.Row, t.Col)),
 
-                // 봉인: 상대가 둘 수 있는 칸 중 가중치 최고 (내가 둘 칸은 제외)
-                SealCard => targets.Where(t => t != move
-                    && BoardLogic.GetFlips(data, t.Row, t.Col, GameLogic.Opponent(me)).Count > 0),
+                // 선물: 내 가중치가 낮은 돌부터 상대에게 양도
+                GiftCard => targets,
 
                 // 그 외: 착수 칸을 뺀 대상 중 가중치 최고
                 _ => targets.Where(t => t != move)
             };
 
             var best = pool
-                .OrderByDescending(t => WeightTables.WeightAt(data.Board, t.Row, t.Col))
+                .OrderBy(t => card is GiftCard
+                    ? WeightTables.WeightAt(data.Board, t.Row, t.Col)
+                    : -WeightTables.WeightAt(data.Board, t.Row, t.Col))
                 .Select(t => ((int Row, int Col)?)t)
                 .FirstOrDefault();
 
@@ -119,17 +120,6 @@ namespace Othello.Core.Cpu {
             return max;
         }
 
-        // 역전의 발판: 지고 있고, 초반·중반엔 손패가 이 카드뿐 / 종반엔 손패 2장 이하
-        private static bool ShouldUseComeback(Data data, IsOnStone me) {
-            if (!ComebackCard.IsBehind(data, me))
-                return false;
-
-            int hand = data.HandOf(me).Count;
-            return WeightTables.PhaseOf(data.Board) == WeightTables.Phase.End
-                ? hand <= ComebackMaxHandEnd
-                : hand == 1;
-        }
-
         // B·C형 카드 중 이번 턴에 쓸 카드 (없으면 null)
         public static ISkillCard? ChooseConditionCard(
             Data data, IsOnStone me, (int Row, int Col) move) {
@@ -144,13 +134,13 @@ namespace Othello.Core.Cpu {
 
                 bool use = card switch {
                     DoubleScoreCard => flips >= DoubleScoreMinFlips,                 // 크게 뒤집을 때만
-                    LuckySevenCard => flips == LuckySevenFlips,                      // 정확히 7개일 때만
+                    OmokCard => BoardLogic.MaxFlipsInLine(data, move.Row, move.Col, me) >= OmokLineFlips,
                     MinusHandCard => flips >= MinusHandMinFlips,                     // 많이 뒤집을 때
                     ShieldCard => MaxOpponentFlipsAfter(data, me, move) >= ShieldMinOpponentFlips, // 크게 당할 위험
                     SilenceCard => data.HandOf(opp).Count >= SilenceMinOpponentHand, // 상대 손패가 많을 때
                     PlunderCard => data.HandOf(opp).Count > 0 && myHand <= PlunderMaxMyHand,
                     SupplyCard => myHand - 1 <= SupplyMaxOtherCards && data.Deck.Count >= SupplyMinDeck,
-                    ComebackCard => ShouldUseComeback(data, me),
+                    BlackKnightCard => BoardLogic.GetValidMoves(data, opp).Count >= BlackKnightMinOpponentMoves,
                     _ => false
                 };
 

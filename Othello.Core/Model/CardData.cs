@@ -1,4 +1,4 @@
-﻿using Othello.Core.Cards;
+using Othello.Core.Cards;
 
 namespace Othello.Core.Model {
     // 카드·초능력 데이터 (Data.cs의 partial 확장)
@@ -8,8 +8,8 @@ namespace Othello.Core.Model {
     [Flags]
     public enum CellState : byte {
         None = 0,
-        Fixed = 1 << 0,  // 고정: 뒤집거나 제거할 수 없음
-        Sealed = 1 << 1  // 봉인: 빈칸에 착수할 수 없음
+        Fixed = 1 << 0   // 고정: 뒤집거나 제거할 수 없음
+
     }
 
     [Flags]
@@ -22,12 +22,12 @@ namespace Othello.Core.Model {
     public struct PlayerStatus {
         public bool Silenced;
         public bool Shielded;
+        public bool ForcedRandomMove; // 흑기사: 다음 차례 무작위 착수 강제
     }
 
     // 칸의 초능력 상태 묶음
     internal struct CardCellFields {
         public CellState CellFlags;
-        public byte SealTurns;
     }
 
     // 보드의 초능력 상태 묶음
@@ -42,10 +42,6 @@ namespace Othello.Core.Model {
             set => CardFields.CellFlags = value;
         }
 
-        public byte SealTurns {
-            get => CardFields.SealTurns;
-            set => CardFields.SealTurns = value;
-        }
     }
 
     public partial struct Board {
@@ -64,7 +60,7 @@ namespace Othello.Core.Model {
         // 이번 턴에만 유효한 점수 효과 (초기화는 ScoreLogic.ResetTurnModifiers)
         public int TurnScoreMultiplier;     // 점수 2배 = 2
         public int TurnPenaltyMultiplier;   // 마이너스의 손 = 2
-        public bool TurnLuckySeven;         // 럭키 세븐
+        public bool TurnOmok;              // 오목
 
         public Hand HandOf(IsOnStone stone)
             => Hands[PlayerIndex(stone)];
@@ -84,7 +80,7 @@ namespace Othello.Core.Model {
             // Hands, Deck, Status는 선언 시 이미 생성됨
             TurnScoreMultiplier = 1;
             TurnPenaltyMultiplier = 1;
-            TurnLuckySeven = false;
+            TurnOmok = false;
             Board.GameFlags = GameState.None;
         }
 

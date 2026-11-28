@@ -79,6 +79,7 @@ namespace Othello.Tests {
             BoardLogic.PutStone(data, 3, 4, IsOnStone.Black);
             BoardLogic.PutStone(data, 6, 6, IsOnStone.Black);
             BoardLogic.PutStone(data, 7, 7, IsOnStone.White);   // 백은 (5,5)에 둘 수 있음
+            data.TurnNumber = 6;                                // 폭탄은 1~5턴 사용 불가 (플레이 테스트 후 규칙)
             CollectionAssert.AreEqual(new[] { (3, 2) }, BoardLogic.GetValidMoves(data, IsOnStone.Black));
 
             // 카드만 쓰고 착수 칸을 지정하면 거부됨 (둘 곳이 없어짐)
@@ -92,7 +93,25 @@ namespace Othello.Tests {
             Assert.IsFalse(ctrl.Data.HandOf(IsOnStone.Black).Cards.Contains(bomb));
         }
 
-        // ───────────── B형: 방패·럭키 세븐·마이너스의 손 ─────────────
+        [TestMethod]
+        public void TC07o_전향은_첫턴_폭탄은_5턴까지_사용불가() {
+            // 플레이 테스트 후 규칙: 시작하자마자 승부가 나는 것을 막음
+            Data data = NewGameData();
+            var convert = new ConvertCard();
+            var bomb = new BombCard();
+
+            data.TurnNumber = 1;
+            Assert.IsFalse(convert.CanUse(data, IsOnStone.Black), "전향 1턴");
+            data.TurnNumber = 2;
+            Assert.IsTrue(convert.CanUse(data, IsOnStone.Black), "전향 2턴");
+
+            data.TurnNumber = 5;
+            Assert.IsFalse(bomb.CanUse(data, IsOnStone.Black), "폭탄 5턴");
+            data.TurnNumber = 6;
+            Assert.IsTrue(bomb.CanUse(data, IsOnStone.Black), "폭탄 6턴");
+        }
+
+        // ───────────── B형: 방패·오목·마이너스의 손 ─────────────
 
         [TestMethod]
         public void TC07e_방패_상대턴_감점절반_다음내턴_해제() {
@@ -113,14 +132,18 @@ namespace Othello.Tests {
         }
 
         [TestMethod]
-        public void TC07f_럭키세븐_정확히7개면_플러스7_아니면_없음() {
-            Data seven = FlipBoard(7);
-            new LuckySevenCard().Apply(seven, IsOnStone.Black, null);
-            Assert.AreEqual((7 + 7, 7), PlaceBlackAtCorner(seven));
+        public void TC07f_오목_한방향5개이상이면_플러스5_아니면_없음() {
+            Data five = FlipBoard(5);
+            new OmokCard().Apply(five, IsOnStone.Black, null);
+            bool fiveInLine = BoardLogic.MaxFlipsInLine(five, 0, 0, IsOnStone.Black) >= ScoreLogic.OmokLineFlips;
+            var fiveFlips = BoardLogic.Place(five, 0, 0, IsOnStone.Black);
+            Assert.AreEqual((10, 5), ScoreLogic.OnPlace(five, IsOnStone.Black, fiveFlips.Count, omokLineCompleted: fiveInLine));
 
-            Data six = FlipBoard(6);
-            new LuckySevenCard().Apply(six, IsOnStone.Black, null);
-            Assert.AreEqual((6, 6), PlaceBlackAtCorner(six));
+            Data four = FlipBoard(4);
+            new OmokCard().Apply(four, IsOnStone.Black, null);
+            bool fourInLine = BoardLogic.MaxFlipsInLine(four, 0, 0, IsOnStone.Black) >= ScoreLogic.OmokLineFlips;
+            var fourFlips = BoardLogic.Place(four, 0, 0, IsOnStone.Black);
+            Assert.AreEqual((4, 4), ScoreLogic.OnPlace(four, IsOnStone.Black, fourFlips.Count, omokLineCompleted: fourInLine));
         }
 
         [TestMethod]
@@ -149,13 +172,13 @@ namespace Othello.Tests {
             // 실제 턴 종료
             Data data = NewGameData();
             new DoubleScoreCard().Apply(data, IsOnStone.Black, null);
-            new LuckySevenCard().Apply(data, IsOnStone.Black, null);
+            new OmokCard().Apply(data, IsOnStone.Black, null);
             new MinusHandCard().Apply(data, IsOnStone.Black, null);
 
             GameLogic.EndTurn(data);
             Assert.AreEqual(1, data.TurnScoreMultiplier);
             Assert.AreEqual(1, data.TurnPenaltyMultiplier);
-            Assert.IsFalse(data.TurnLuckySeven);
+            Assert.IsFalse(data.TurnOmok);
 
             // 새 게임
             new MinusHandCard().Apply(data, IsOnStone.Black, null);
@@ -163,13 +186,13 @@ namespace Othello.Tests {
             Assert.AreEqual(1, data.TurnPenaltyMultiplier);
 
             // CPU 시뮬레이션 착수 후
-            foreach (ISkillCard card in new ISkillCard[] { new DoubleScoreCard(), new LuckySevenCard(), new MinusHandCard() }) {
+            foreach (ISkillCard card in new ISkillCard[] { new DoubleScoreCard(), new OmokCard(), new MinusHandCard() }) {
                 Data sim = NewGameData();
                 sim.HandOf(IsOnStone.Black).TryAdd(card);
                 Assert.IsTrue(CpuSimLogic.TryApply(sim, new CpuCandidate(card, null, (2, 3)), IsOnStone.Black), card.Name);
                 Assert.AreEqual(1, sim.TurnScoreMultiplier, card.Name);
                 Assert.AreEqual(1, sim.TurnPenaltyMultiplier, card.Name);
-                Assert.IsFalse(sim.TurnLuckySeven, card.Name);
+                Assert.IsFalse(sim.TurnOmok, card.Name);
             }
         }
 
@@ -179,15 +202,15 @@ namespace Othello.Tests {
             Data copy = original.Clone();
 
             copy.TurnPenaltyMultiplier = 2;
-            copy.TurnLuckySeven = true;
+            copy.TurnOmok = true;
             GameStateLogic.SetShielded(copy, IsOnStone.Black, true);
 
             Assert.AreEqual(1, original.TurnPenaltyMultiplier);
-            Assert.IsFalse(original.TurnLuckySeven);
+            Assert.IsFalse(original.TurnOmok);
             Assert.IsFalse(GameStateLogic.IsShielded(original, IsOnStone.Black));
         }
 
-        // ───────────── C형: 약탈·보급·역전의 발판 ─────────────
+        // ───────────── C형: 약탈·보급·흑기사 ─────────────
 
         // 흑 손패를 원하는 카드로 채운 컨트롤러 (덱은 침묵 8장)
         private static GameController ControllerWithBlackHand(params ISkillCard[] hand) {
@@ -224,7 +247,7 @@ namespace Othello.Tests {
         [TestMethod]
         public void TC07j_보급_손패3장_한도초과분은_덱으로() {
             var supply = new SupplyCard();
-            var keep1 = new SealCard();
+            var keep1 = new GiftCard();
             var keep2 = new FixCard();
             var ctrl = ControllerWithBlackHand(supply, keep1, keep2);
             int deckBefore = ctrl.Data.Deck.Count;
@@ -254,28 +277,16 @@ namespace Othello.Tests {
         }
 
         [TestMethod]
-        public void TC07k_역전의발판_이기고있으면_사용불가() {
-            Data data = NewGameData();
-            data.Deck = new CardDeck(new ISkillCard[] { new SilenceCard(), new SilenceCard(), new SilenceCard() }, seed: 1);
-            var card = new ComebackCard();
-            data.HandOf(IsOnStone.Black).TryAdd(card);
+        public void TC07k_흑기사_상대턴_강제자동착수후_해제() {
+            var knight = new BlackKnightCard();
+            var ctrl = ControllerWithBlackHand(knight);
 
-            data.Scores[0] = 5; data.Scores[1] = 3;
-            Assert.IsFalse(card.CanUse(data, IsOnStone.Black), "이기고 있음");
-
-            data.Scores[0] = 3; data.Scores[1] = 3;
-            Assert.IsFalse(card.CanUse(data, IsOnStone.Black), "동점");
-
-            data.Scores[0] = 2; data.Scores[1] = 3;
-            Assert.IsTrue(card.CanUse(data, IsOnStone.Black), "지고 있음");
-
-            // 역전의 발판을 뺀 0장 + 3장 = 3장
-            Assert.AreEqual("3장 획득", card.Apply(data, IsOnStone.Black, null));
-            data.HandOf(IsOnStone.Black).Remove(card);
-            Assert.AreEqual(3, data.HandOf(IsOnStone.Black).Count);
-
-            // 덱이 비면 사용 불가
-            Assert.IsFalse(new ComebackCard().CanUse(data, IsOnStone.Black));
+            Assert.IsTrue(ctrl.TryExecuteTurn(
+                GameAction.WithCard(knight, null, (2, 3)), out string err), err);
+            Assert.AreEqual(IsOnStone.Black, ctrl.Data.Current, "상대의 강제 턴 종료 후 흑 차례");
+            Assert.AreEqual(3, ctrl.Data.TurnNumber);
+            Assert.IsFalse(GameStateLogic.IsForcedRandomMove(ctrl.Data, IsOnStone.White));
+            Assert.AreEqual(6, 64 - BoardLogic.EmptyCount(ctrl.Data));
         }
 
         // ───────────── 도감 값 ─────────────
@@ -289,19 +300,19 @@ namespace Othello.Tests {
                 [6] = "획득 점수 ×2",         // 점수 2배
                 [7] = "없음",                 // 고정
                 [8] = "감점 ÷ 2",             // 방패
-                [9] = "없음",                 // 봉인
+                [15] = "사용자 +1",            // 선물
                 [10] = "없음",                // 약탈
                 [11] = "없음",                // 침묵
                 [12] = "없음",                // 보급
-                [17] = "사용자 +7",           // 럭키 세븐
+                [18] = "조건 충족 시 사용자 +5", // 오목
                 [19] = "사용자 +n, 상대 -2n", // 마이너스의 손
-                [23] = "없음"                 // 역전의 발판
+                [20] = "없음"                 // 흑기사
             };
 
             var cards = new SkillCardBase[] {
                 new ConvertCard(), new BombCard(), new DoubleScoreCard(), new FixCard(), new ShieldCard(),
-                new SealCard(), new PlunderCard(), new SilenceCard(), new SupplyCard(),
-                new LuckySevenCard(), new MinusHandCard(), new ComebackCard()
+                new GiftCard(), new PlunderCard(), new SilenceCard(), new SupplyCard(),
+                new OmokCard(), new MinusHandCard(), new BlackKnightCard()
             };
 
             Assert.AreEqual(expected.Count, cards.Length);

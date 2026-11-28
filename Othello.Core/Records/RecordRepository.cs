@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Othello.Core.Cards;
 using Othello.Core.Logic;
@@ -186,6 +186,42 @@ namespace Othello.Core.Records {
             using var r = cmd.ExecuteReader();
             r.Read();
             return new PlayerStats(id, r.GetInt32(0), r.GetInt32(1), r.GetInt32(2));
+        }
+
+        // 플레이어 ID 부분 문자열 검색: 일치하는 모든 ID의 승·패·무 집계
+        // LIKE 와일드카드가 아닌 일반 문자열로 검색 (%, _ 입력도 글자 그대로 처리).
+        public IReadOnlyList<PlayerStats> SearchStats(string keyword) {
+            if (string.IsNullOrWhiteSpace(keyword))
+                return Array.Empty<PlayerStats>();
+
+            using var conn = Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT
+                    p.Id,
+                    SUM(CASE WHEN (g.BlackId = p.Id AND g.Winner = 'B')
+                               OR (g.WhiteId = p.Id AND g.Winner = 'W') THEN 1 ELSE 0 END) AS Wins,
+                    SUM(CASE WHEN (g.BlackId = p.Id AND g.Winner = 'W')
+                               OR (g.WhiteId = p.Id AND g.Winner = 'B') THEN 1 ELSE 0 END) AS Losses,
+                    SUM(CASE WHEN g.Winner = 'D' THEN 1 ELSE 0 END) AS Draws
+                FROM Players AS p
+                LEFT JOIN Games AS g
+                    ON g.BlackId = p.Id OR g.WhiteId = p.Id
+                WHERE instr(lower(p.Id), lower(@keyword)) > 0
+                GROUP BY p.Id
+                ORDER BY p.Id COLLATE NOCASE;
+                """;
+            cmd.Parameters.AddWithValue("@keyword", keyword.Trim());
+
+            var result = new List<PlayerStats>();
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                result.Add(new PlayerStats(
+                    r.GetString(0),
+                    checked((int)r.GetInt64(1)),
+                    checked((int)r.GetInt64(2)),
+                    checked((int)r.GetInt64(3))));
+            return result;
         }
 
         // 패 도감 목록 (Id 순)

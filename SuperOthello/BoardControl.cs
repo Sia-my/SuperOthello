@@ -145,21 +145,6 @@ public class BoardControl : Control {
             g.FillRectangle(hb, CellRect(hr, hc));
         }
 
-        // 봉인 칸: 빗금 + 남은 턴
-        using (var hatch = new HatchBrush(HatchStyle.WideUpwardDiagonal, Color.FromArgb(150, 10, 10, 10), Color.FromArgb(60, 90, 40, 120)))
-        using (var sf = Theme.F(Math.Max(7f, cs * 0.2f), FontStyle.Bold))
-        using (var sb = new SolidBrush(Color.FromArgb(230, 230, 210, 255))) {
-            var fmt = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Far };
-            for (int row = 0; row < Board.Size; row++)
-                for (int col = 0; col < Board.Size; col++) {
-                    if (!CellStateLogic.Has(cells[row, col], CellState.Sealed)) continue;
-                    var r = CellRect(row, col);
-                    g.FillRectangle(hatch, r);
-                    var tr = r; tr.Inflate(-3, -2);
-                    g.DrawString($"봉인 {cells[row, col].SealTurns}", sf, sb, tr, fmt);
-                }
-        }
-
         // 격자 + 화점
         using (var pen = new Pen(Color.FromArgb(140, 10, 40, 25), 1.2f)) {
             for (int i = 0; i <= Board.Size; i++) {

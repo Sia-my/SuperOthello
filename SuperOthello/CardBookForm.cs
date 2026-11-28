@@ -7,7 +7,7 @@ namespace SuperOthello;
 // 카드 도감: 유형별 3열로 이름 / 분류 / 효과 설명 / 점수 영향 표시 (설계서 3.2, F6-3)
 // - 이름·설명은 Psionics 테이블, 분류·점수 영향은 카드 클래스 (Id로 매칭). DB를 못 쓰면 CardPool로 표시
 public class CardBookForm : Form {
-    private const int ColWidth = 290, TileHeight = 104, Gap = 12, GridTop = 104;
+    private const int ColWidth = 290, TileHeight = 120, Gap = 12, GridTop = 104;
 
     private static readonly (CardType Type, string Summary)[] Columns = {
         (CardType.A, "판 위 돌 배치를 바꾸는 패"),
@@ -103,7 +103,7 @@ public class CardBookForm : Form {
 
                 g.DrawString(row.Name, nameFont, textBrush, r.X + 16, r.Y + 10);
                 var fmt = new StringFormat { Trimming = StringTrimming.EllipsisWord };
-                g.DrawString(row.Description, descFont, subBrush, new RectangleF(r.X + 16, r.Y + 36, r.Width - 28, 38), fmt);
+                g.DrawString(row.Description, descFont, subBrush, new RectangleF(r.X + 16, r.Y + 36, r.Width - 28, TileHeight - 66), fmt);
                 Theme.DrawBadge(g, "점수 영향 · " + row.ScoreEffect, effFont, row.ScoreEffect == "없음" ? Theme.Dim : Theme.Accent,
                     new PointF(r.X + 16, r.Bottom - 26), out _);
 

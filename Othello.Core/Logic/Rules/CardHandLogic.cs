@@ -2,7 +2,7 @@ using Othello.Core.Cards;
 using Othello.Core.Model;
 
 namespace Othello.Core.Logic {
-    // 카드 효과로 손패를 받는 공통 처리 (보급·역전의 발판 등)
+    // 카드 효과로 손패를 받는 공통 처리 (보급 등)
     // - 카드 효과 적용 중에는 사용한 카드가 아직 손패에 있음 → 그 1장은 빼고 한도 계산
 
     public static class CardHandLogic {
@@ -31,8 +31,7 @@ namespace Othello.Core.Logic {
                 if (received < room) {
                     hand.ForceAdd(drawn);   // 사용한 카드가 빠지면 3장 이하
                     received++;
-                }
-                else {
+                } else {
                     data.Deck.Return(drawn);
                 }
             }
