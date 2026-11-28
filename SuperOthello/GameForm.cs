@@ -7,25 +7,25 @@ using Othello.Core.Records;
 
 namespace SuperOthello;
 
-// 게임 화면 (설계서 3.2, 디자이너 없이 코드로 배치)
-// - 조작: 손패 클릭(선택) → 대상 칸 클릭(필요 시) → 착수 칸 클릭
+// 게임 화면 (설계서 3.2: 상단 턴 표시 · 좌우 플레이어 패널 · 중앙 보드 · 하단 행동 로그, 코드로 배치)
+// - 조작: 손패 클릭(선택) → 대상 칸 클릭(필요 시) → 착수 칸 클릭. 마우스를 올리면 뒤집힐 돌 미리보기 (F6-4)
 // - 상태는 GameController 이벤트로만 받음. CPU 계산은 백그라운드 + 0.7초 연출 지연
 public class GameForm : Form {
+    private const int Pad = 14;
+    private const int BoardSide = 460;
+    private const int PanelWidth = 260;
+    private const int BarHeight = 60;
+    private const int LogHeight = 106;
+
     private readonly GameController ctrl;
     private readonly RecordRepository? records;   // null이면 전적 기능 비활성
     private readonly CPUPlayer?[] cpus = new CPUPlayer?[2];
 
-    private readonly BoardControl boardView = new() { Location = new Point(12, 12), Size = new Size(480, 480) };
-    private readonly Label turnLabel = new() { Location = new Point(510, 12), AutoSize = true, Font = new Font("맑은 고딕", 13f, FontStyle.Bold) };
-    private readonly Label infoLabel = new() { Location = new Point(510, 44), AutoSize = true, Font = new Font("맑은 고딕", 10f) };
-    private readonly GroupBox[] handBoxes =
-    {
-        new() { Location = new Point(510, 110), Size = new Size(330, 80) },
-        new() { Location = new Point(510, 200), Size = new Size(330, 80) }
-    };
-    private readonly ListBox logBox = new() { Location = new Point(510, 290), Size = new Size(330, 160), HorizontalScrollbar = true };
-    private readonly Button resignButton = new() { Text = "기권", Location = new Point(510, 460), Size = new Size(80, 30) };
-    private readonly ToolTip tip = new();
+    private readonly TurnBar turnBar = new();
+    private readonly BoardControl boardView = new();
+    private readonly PlayerPanel[] panels = { new(IsOnStone.Black), new(IsOnStone.White) };
+    private readonly LogView logView = new();
+    private readonly Button resignButton = Theme.MakeButton("기권", new Size(84, 36));
 
     // 사람의 입력 진행 상태
     private ISkillCard? selectedCard;
@@ -33,18 +33,25 @@ public class GameForm : Form {
     private bool cpuThinking;
     private bool resignConfirmed;   // 기권 버튼으로 이미 확인함
 
+    // 미리보기용: 선택한 카드를 적용한 복제본과 그 상태의 착수 가능 칸
+    private Data? previewBase;
+    private List<(int Row, int Col)> previewMoves = new();
+    private IReadOnlyList<(int Row, int Col)> currentTargets = Array.Empty<(int Row, int Col)>();
+
     // 결과 화면에서 '다시 하기'를 골랐는지 (창이 닫힌 뒤 MainForm이 확인)
     public bool ReplayRequested { get; private set; }
 
     public GameForm(GameController controller, RecordRepository? recordRepository = null) {
         ctrl = controller;
         records = recordRepository;
+
         Text = "초능력 오셀로";
-        ClientSize = new Size(856, 504);
+        Theme.ApplyForm(this);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
+        ClientSize = new Size(Pad * 4 + PanelWidth * 2 + BoardSide, Pad + BarHeight + Pad + BoardSide + Pad + LogHeight + Pad);
 
-        Controls.AddRange(new Control[] { boardView, turnLabel, infoLabel, handBoxes[0], handBoxes[1], logBox, resignButton });
+        LayoutControls();
 
         foreach (IsOnStone s in new[] { IsOnStone.Black, IsOnStone.White }) {
             var slot = ctrl.SlotOf(s);
@@ -52,8 +59,11 @@ public class GameForm : Form {
         }
 
         boardView.CellClicked += OnCellClicked;
+        boardView.CellHovered += OnCellHovered;
+        foreach (var panel in panels) panel.CardClicked += OnCardClicked;
         resignButton.Click += OnResign;
-        ctrl.LogAdded += msg => { logBox.Items.Add(msg); logBox.TopIndex = logBox.Items.Count - 1; };
+
+        ctrl.LogAdded += AddLog;
         ctrl.StateChanged += RefreshView;
         ctrl.GameOver += OnGameOver;
         ctrl.ChooseDiscard = ChooseDiscardDialog;
@@ -61,81 +71,138 @@ public class GameForm : Form {
         Shown += (_, _) => ctrl.Start();
     }
 
+    private void LayoutControls() {
+        int top = Pad + BarHeight + Pad;
+        turnBar.Bounds = new Rectangle(Pad, Pad, ClientSize.Width - Pad * 2, BarHeight);
+        resignButton.Location = new Point(turnBar.Right - resignButton.Width - 12, Pad + (BarHeight - resignButton.Height) / 2);
+        turnBar.ChipsRightMargin = resignButton.Width + 24;
+
+        panels[0].Bounds = new Rectangle(Pad, top, PanelWidth, BoardSide);
+        boardView.Bounds = new Rectangle(Pad * 2 + PanelWidth, top, BoardSide, BoardSide);
+        panels[1].Bounds = new Rectangle(boardView.Right + Pad, top, PanelWidth, BoardSide);
+        logView.Bounds = new Rectangle(Pad, top + BoardSide + Pad, ClientSize.Width - Pad * 2, LogHeight);
+
+        Controls.AddRange(new Control[] { turnBar, panels[0], boardView, panels[1], logView, resignButton });
+        resignButton.BringToFront();
+    }
+
     // ───────────────────────── 화면 갱신 ─────────────────────────
 
-    private static string StoneName(IsOnStone stone) => stone == IsOnStone.Black ? "흑" : "백";
+    private bool MyInput => !ctrl.Data.IsOver && !cpuThinking && !ctrl.CurrentSlot.IsCpu;
 
     private void RefreshView() {
         var s = ctrl.Data;
         IsOnStone me = s.Current;
+        bool myInput = MyInput;
 
-        turnLabel.Text = s.IsOver ? "게임 종료"
-                       : cpuThinking ? $"{StoneName(me)} 차례 — 생각 중…"
-                       : $"{StoneName(me)} 차례 ({ctrl.CurrentSlot.Id})";
-        infoLabel.Text = $"흑 {ctrl.SlotOf(IsOnStone.Black).Id}: {s.Scores[0]}점   " +
-                         $"백 {ctrl.SlotOf(IsOnStone.White).Id}: {s.Scores[1]}점\n" +
-                         $"턴 {s.TurnNumber} · 덱 {s.Deck.Count}장 · 빈칸 {BoardLogic.EmptyCount(s)}";
-
-        BuildHand(IsOnStone.Black);
-        BuildHand(IsOnStone.White);
-
-        bool myInput = !s.IsOver && !cpuThinking && !ctrl.CurrentSlot.IsCpu;
-        IReadOnlyCollection<(int Row, int Col)> targets = Array.Empty<(int Row, int Col)>();
-        IReadOnlyCollection<(int Row, int Col)> hints = Array.Empty<(int Row, int Col)>();
-
-        if (myInput) {
-            if (selectedCard is { NeedsTarget: true } && selectedTarget is null)
-                targets = selectedCard.GetTargets(s, me).ToList();
-            else
-                hints = MovesAfterSelectedCard();
+        // 플레이어 패널 (양측 손패 공개, F2-6)
+        foreach (IsOnStone owner in new[] { IsOnStone.Black, IsOnStone.White }) {
+            int i = ScoreLogic.PlayerIndex(owner);
+            bool turn = !s.IsOver && owner == me;
+            panels[i].Show(ctrl.SlotOf(owner), s.Scores[i], turn, turn && cpuThinking, s.StatusOf(owner),
+                s.HandOf(owner).Cards, owner == me ? selectedCard : null,
+                canClick: myInput && owner == me, canUse: ctrl.CanUseCard);
         }
 
-        boardView.Render(s.Board, hints, targets, ctrl.LastMove);
+        // 보드: 대상 지정 단계면 대상 칸, 아니면 (카드 적용 후) 착수 가능 칸
+        IReadOnlyCollection<(int Row, int Col)> hints = Array.Empty<(int Row, int Col)>();
+        currentTargets = Array.Empty<(int Row, int Col)>();
+        previewBase = null;
+        previewMoves = new();
+        Board shown = s.Board;
+
+        if (myInput) {
+            if (selectedCard is { NeedsTarget: true } && selectedTarget is null) {
+                currentTargets = selectedCard.GetTargets(s, me).ToList();
+            }
+            else {
+                previewBase = AfterSelectedCard();
+                previewMoves = BoardLogic.GetValidMoves(previewBase, me);
+                hints = previewMoves;
+                if (selectedCard != null) shown = previewBase.Board;   // 카드 효과를 미리 보여 줌
+            }
+        }
+
+        boardView.Render(shown, hints, currentTargets, ctrl.LastMove);
+        UpdateTurnBar();
         resignButton.Enabled = !s.IsOver;
 
         if (!s.IsOver && ctrl.CurrentSlot.IsCpu && !cpuThinking) _ = RunCpuTurnAsync();
     }
 
-    // 양측 손패 공개 (F2-6), 자기 차례인 사람의 손패만 누를 수 있음
-    private void BuildHand(IsOnStone owner) {
-        var box = handBoxes[ScoreLogic.PlayerIndex(owner)];
+    private void UpdateTurnBar() {
         var s = ctrl.Data;
-        var status = s.StatusOf(owner);
+        IsOnStone me = s.Current;
+        string title, guide;
 
-        box.Text = $"{StoneName(owner)} 손패" + (status.Silenced ? " (침묵)" : "");
-        box.Controls.Clear();
+        if (s.IsOver) {
+            title = "게임 종료";
+            guide = "결과를 확인하세요";
+        }
+        else {
+            title = $"{Theme.StoneName(me)} 차례 · {ctrl.CurrentSlot.Id}";
+            if (cpuThinking || ctrl.CurrentSlot.IsCpu)
+                guide = "CPU가 다음 수를 고르는 중입니다…";
+            else if (selectedCard is { NeedsTarget: true } && selectedTarget is null)
+                guide = $"[{selectedCard.Name}] 효과를 줄 칸을 고르세요 · 카드를 다시 누르면 취소";
+            else if (selectedCard != null)
+                guide = $"[{selectedCard.Name}] 사용 후 둘 칸을 고르세요 · 카드를 다시 누르면 취소";
+            else if (GameStateLogic.IsSilenced(s, me))
+                guide = "침묵 상태라 이번 턴에는 카드를 쓸 수 없습니다 · 둘 칸을 고르세요";
+            else
+                guide = "점으로 표시된 칸에 두세요 · 착수 전에 손패 카드를 쓸 수 있습니다";
+        }
 
-        var cards = s.HandOf(owner).Cards;
-        for (int i = 0; i < Hand.MaxSize; i++) {
-            var btn = new Button { Location = new Point(8 + i * 106, 22), Size = new Size(100, 48) };
-            if (i < cards.Count) {
-                var card = cards[i];
-                btn.Text = $"{card.Name}\n({card.Type})";
-                btn.Enabled = owner == s.Current && !ctrl.CurrentSlot.IsCpu && !cpuThinking && ctrl.CanUseCard(card);
-                btn.BackColor = ReferenceEquals(card, selectedCard) ? Color.LightSkyBlue : SystemColors.Control;
-                tip.SetToolTip(btn, card.Description);   // 손패 툴팁 (F6-3)
-                btn.Click += (_, _) => OnCardClicked(card);
-            } else {
-                btn.Text = "-";
-                btn.Enabled = false;
-            }
-            box.Controls.Add(btn);
+        turnBar.Show(me, title, guide, s.IsOver,
+            ("턴", s.TurnNumber.ToString()),
+            ("덱", $"{s.Deck.Count}장"),
+            ("빈칸", BoardLogic.EmptyCount(s).ToString()));
+    }
+
+    // 선택한 패를 적용했다고 가정한 복제본 (카드가 없으면 그냥 복제본)
+    private Data AfterSelectedCard() {
+        var copy = ctrl.Data.Clone();
+        if (selectedCard != null)
+            selectedCard.Apply(copy, copy.Current, selectedTarget);
+        return copy;
+    }
+
+    private List<(int Row, int Col)> MovesAfterSelectedCard() {
+        var copy = AfterSelectedCard();
+        return BoardLogic.GetValidMoves(copy, copy.Current);
+    }
+
+    // 마우스를 올린 칸 미리보기 (F6-4): 착수면 뒤집힐 돌, 대상 지정이면 효과 범위
+    private void OnCellHovered((int Row, int Col)? cell) {
+        if (!MyInput || cell is not (int r, int c)) { boardView.ClearPreview(); return; }
+        IsOnStone me = ctrl.Data.Current;
+
+        if (currentTargets.Count > 0) {
+            if (!currentTargets.Contains((r, c))) { boardView.ClearPreview(); return; }
+            IReadOnlyCollection<(int Row, int Col)> area = selectedCard is BombCard
+                ? BombCard.Area(r, c).ToList()
+                : new[] { (r, c) };
+            boardView.SetPreview(null, me, Array.Empty<(int Row, int Col)>(), area);
+            return;
+        }
+
+        if (previewBase != null && previewMoves.Contains((r, c))) {
+            var flips = BoardLogic.GetFlips(previewBase, r, c, me);
+            boardView.SetPreview((r, c), me, flips, Array.Empty<(int Row, int Col)>());
+        }
+        else {
+            boardView.ClearPreview();
         }
     }
 
-    // 선택한 패를 적용했다고 가정했을 때 둘 수 있는 칸 (복사본에서 계산)
-    private List<(int Row, int Col)> MovesAfterSelectedCard() {
-        var s = ctrl.Data;
-        if (selectedCard == null) return BoardLogic.GetValidMoves(s, s.Current);
+    // ───────────────────────── 행동 로그 ─────────────────────────
 
-        var copy = s.Clone();
-        selectedCard.Apply(copy, copy.Current, selectedTarget);
-        return BoardLogic.GetValidMoves(copy, copy.Current);
-    }
+    private void AddLog(string msg) => logView.Add(msg);
 
     // ───────────────────────── 사람 입력 ─────────────────────────
 
     private void OnCardClicked(ISkillCard card) {
+        if (!MyInput) return;
         if (ReferenceEquals(selectedCard, card)) { ClearSelection(); }   // 다시 누르면 취소
         else { selectedCard = card; selectedTarget = null; }
 
@@ -147,7 +214,7 @@ public class GameForm : Form {
     }
 
     private void OnCellClicked((int Row, int Col) p) {
-        if (ctrl.Data.IsOver || cpuThinking || ctrl.CurrentSlot.IsCpu) return;
+        if (!MyInput) return;
 
         // 대상 지정 단계
         if (selectedCard is { NeedsTarget: true } && selectedTarget is null) {
@@ -196,7 +263,7 @@ public class GameForm : Form {
         if (IsDisposed || ctrl.Data.IsOver) return;
         if (!ctrl.TryExecuteTurn(action, out string err)) {
             // 설계서 2.5: CPU 행동이 거부되면 카드 없이 가중치 최고 칸에 착수
-            logBox.Items.Add($"CPU 오류: {err} → 일반 착수로 대체");
+            AddLog($"CPU 오류: {err} → 일반 착수로 대체");
             if (!ctrl.TryExecuteTurn(cpu.FallbackAction(ctrl.Data), out _))
                 RefreshView();
         }
@@ -206,20 +273,28 @@ public class GameForm : Form {
 
     // 손패 4장 중 버릴 1장 선택 (F2-3)
     private ISkillCard ChooseDiscardDialog(IReadOnlyList<ISkillCard> cards) {
+        const int tileW = 200, tileH = 96, gap = 10;
         using var dlg = new Form {
-            Text = "버릴 패를 고르세요",
+            Text = "버릴 패 선택",
             FormBorderStyle = FormBorderStyle.FixedDialog,
             StartPosition = FormStartPosition.CenterParent,
-            ClientSize = new Size(16 + cards.Count * 106, 72),
-            ControlBox = false
+            ControlBox = false,
+            ShowInTaskbar = false,
+            ClientSize = new Size(24 + cards.Count * tileW + (cards.Count - 1) * gap, 160)
         };
+        Theme.ApplyForm(dlg);
+        dlg.Controls.Add(new Label {
+            Text = "손패가 가득 찼습니다. 버릴 카드 1장을 고르세요 (버린 카드는 덱으로 돌아갑니다)",
+            ForeColor = Theme.Text, Font = Theme.F(10.5f, FontStyle.Bold),
+            Location = new Point(12, 14), AutoSize = true
+        });
 
         ISkillCard chosen = cards[cards.Count - 1];
         for (int i = 0; i < cards.Count; i++) {
-            var card = cards[i];
-            var btn = new Button { Text = card.Name, Location = new Point(8 + i * 106, 12), Size = new Size(100, 48) };
-            btn.Click += (_, _) => { chosen = card; dlg.DialogResult = DialogResult.OK; };
-            dlg.Controls.Add(btn);
+            var tile = new CardTile { Bounds = new Rectangle(12 + i * (tileW + gap), 48, tileW, tileH), BackColor = Theme.Back };
+            tile.Show(cards[i], selected: i == cards.Count - 1, clickable: true, blocked: false);
+            tile.CardClicked += c => { chosen = c; dlg.DialogResult = DialogResult.OK; };
+            dlg.Controls.Add(tile);
         }
         dlg.ShowDialog(this);
         return chosen;
@@ -238,7 +313,7 @@ public class GameForm : Form {
             }
             catch (Exception ex) {
                 saveFailed = true;
-                logBox.Items.Add($"전적 저장 실패: {ex.Message}");
+                AddLog($"전적 저장 실패: {ex.Message}");
             }
         }
 

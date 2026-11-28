@@ -1,3 +1,4 @@
+using System.Drawing.Drawing2D;
 using Othello.Core.Logic;
 using Othello.Core.Model;
 
@@ -6,69 +7,96 @@ namespace SuperOthello;
 // 결과 화면: 흑·백 뒤집기·카드 점수 / 남은 돌 보너스 / 최종 점수, 승자 (설계서 3.2, F3-3·F3-4)
 // - 다시 하기 → DialogResult.Retry, 메인 메뉴·창 닫기 → DialogResult.OK
 public class ResultForm : Form {
+    private readonly IsOnStone winner;
+    private readonly string headline;
+    private readonly (PlayerSlot Slot, IsOnStone Stone, (int Play, int Bonus, int Final) Score)[] sides;
+
     public ResultForm(Data finished, PlayerSlot black, PlayerSlot white) {
         Text = "게임 결과";
-        ClientSize = new Size(400, 290);
+        Theme.ApplyForm(this);
+        DoubleBuffered = true;
+        ClientSize = new Size(520, 380);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        Font = new Font("맑은 고딕", 10f);
 
-        IsOnStone winner = ScoreLogic.Winner(finished);
-        string headline = winner switch {
+        winner = ScoreLogic.Winner(finished);
+        headline = winner switch {
             IsOnStone.Black => $"{black.Id} 승리!",
             IsOnStone.White => $"{white.Id} 승리!",
             _ => "무승부"
         };
-
-        Controls.Add(new Label {
-            Text = headline,
-            Font = new Font("맑은 고딕", 16f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Location = new Point(0, 14),
-            Size = new Size(400, 40)
-        });
-
-        var table = new TableLayoutPanel {
-            Location = new Point(20, 66),
-            Size = new Size(360, 150),
-            ColumnCount = 3,
-            RowCount = 4,
-            CellBorderStyle = TableLayoutPanelCellBorderStyle.Single
+        sides = new[] {
+            (black, IsOnStone.Black, ScoreLogic.BreakdownOf(finished, IsOnStone.Black)),
+            (white, IsOnStone.White, ScoreLogic.BreakdownOf(finished, IsOnStone.White))
         };
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
-        for (int i = 0; i < 4; i++) table.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
 
-        var b = ScoreLogic.BreakdownOf(finished, IsOnStone.Black);
-        var w = ScoreLogic.BreakdownOf(finished, IsOnStone.White);
-
-        AddRow(table, 0, "", $"흑 {black.Id}", $"백 {white.Id}", bold: true);
-        AddRow(table, 1, "뒤집기·카드 점수", b.Play.ToString(), w.Play.ToString());
-        AddRow(table, 2, "남은 돌 보너스", $"+{b.Bonus}", $"+{w.Bonus}");
-        AddRow(table, 3, "최종 점수", b.Final.ToString(), w.Final.ToString(), bold: true);
-        Controls.Add(table);
-
-        var retry = new Button { Text = "다시 하기", Location = new Point(100, 234), Size = new Size(96, 36), DialogResult = DialogResult.Retry };
-        var menu = new Button { Text = "메인 메뉴", Location = new Point(204, 234), Size = new Size(96, 36), DialogResult = DialogResult.OK };
+        var retry = Theme.MakeButton("다시 하기", new Size(130, 42), primary: true);
+        var menu = Theme.MakeButton("메인 메뉴", new Size(130, 42));
+        retry.DialogResult = DialogResult.Retry;
+        menu.DialogResult = DialogResult.OK;
+        retry.Location = new Point(ClientSize.Width / 2 - retry.Width - 6, ClientSize.Height - 62);
+        menu.Location = new Point(ClientSize.Width / 2 + 6, ClientSize.Height - 62);
         Controls.AddRange(new Control[] { retry, menu });
         AcceptButton = menu;
         CancelButton = menu;   // Esc·창 닫기는 메인 메뉴로
     }
 
-    private void AddRow(TableLayoutPanel table, int row, string head, string black, string white, bool bold = false) {
-        var font = bold ? new Font(Font, FontStyle.Bold) : Font;
-        string[] texts = { head, black, white };
-        for (int col = 0; col < 3; col++) {
-            table.Controls.Add(new Label {
-                Text = texts[col],
-                Font = font,
-                Dock = DockStyle.Fill,
-                AutoEllipsis = true,
-                TextAlign = col == 0 ? ContentAlignment.MiddleLeft : ContentAlignment.MiddleCenter
-            }, col, row);
+    protected override void OnPaint(PaintEventArgs e) {
+        base.OnPaint(e);
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        var center = new StringFormat { Alignment = StringAlignment.Center };
+
+        // 승자 문구
+        using (var sub = Theme.F(10f))
+        using (var sb = new SolidBrush(Theme.SubText))
+            g.DrawString("게임 종료", sub, sb, new RectangleF(0, 18, ClientSize.Width, 22), center);
+        using (var hf = Theme.F(20f, FontStyle.Bold))
+        using (var hb = new SolidBrush(winner == IsOnStone.Empty ? Theme.Text : Theme.Accent))
+            g.DrawString(headline, hf, hb, new RectangleF(0, 40, ClientSize.Width, 40), center);
+
+        // 흑·백 점수 카드
+        float cardW = (ClientSize.Width - 60) / 2f, top = 96, cardH = 200;
+        for (int i = 0; i < 2; i++) {
+            var (slot, stone, score) = sides[i];
+            bool won = stone == winner;
+            var r = new RectangleF(20 + i * (cardW + 20), top, cardW, cardH);
+
+            using (var path = Theme.Rounded(r, 14)) {
+                using (var fill = new SolidBrush(Theme.Panel)) g.FillPath(fill, path);
+                using var pen = new Pen(won ? Theme.Accent : Theme.Border, won ? 2.5f : 1f);
+                g.DrawPath(pen, path);
+            }
+
+            Theme.DrawStone(g, new RectangleF(r.X + 16, r.Y + 16, 34, 34), stone);
+            using (var nf = Theme.F(12f, FontStyle.Bold))
+            using (var nb = new SolidBrush(Theme.Text)) {
+                var fmt = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
+                g.DrawString(slot.Id, nf, nb, new RectangleF(r.X + 58, r.Y + 22, r.Width - 66, 24), fmt);
+            }
+            if (won) {
+                using var bf = Theme.F(8.5f, FontStyle.Bold);
+                Theme.DrawBadge(g, "승리", bf, Theme.Accent, new PointF(r.Right - 52, r.Y + 8), out _);
+            }
+
+            Row(g, r, 68, "뒤집기·카드 점수", score.Play.ToString(), false);
+            Row(g, r, 98, "남은 돌 보너스", $"+{score.Bonus}", false);
+            using (var line = new Pen(Theme.Border, 1f))
+                g.DrawLine(line, r.X + 16, r.Y + 132, r.Right - 16, r.Y + 132);
+            Row(g, r, 142, "최종 점수", score.Final.ToString(), true);
         }
+    }
+
+    private static void Row(Graphics g, RectangleF card, float y, string label, string value, bool big) {
+        using var lf = Theme.F(big ? 10.5f : 9.5f, big ? FontStyle.Bold : FontStyle.Regular);
+        using var lb = new SolidBrush(big ? Theme.Text : Theme.SubText);
+        using var vf = Theme.F(big ? 20f : 12f, FontStyle.Bold);
+        using var vb = new SolidBrush(Theme.Text);
+        g.DrawString(label, lf, lb, card.X + 16, card.Y + y + (big ? 10 : 2));
+        var right = new StringFormat { Alignment = StringAlignment.Far };
+        g.DrawString(value, vf, vb, new RectangleF(card.X, card.Y + y, card.Width - 16, 40), right);
     }
 }

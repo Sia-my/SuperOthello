@@ -13,31 +13,56 @@ public class MainForm : Form {
         records = recordRepository;
 
         Text = "초능력 오셀로";
-        ClientSize = new Size(320, 330);
+        Theme.ApplyForm(this);
+        DoubleBuffered = true;
+        ClientSize = new Size(400, 500);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        Font = new Font("맑은 고딕", 10f);
 
-        var title = new Label {
-            Text = "초능력 오셀로",
-            Font = new Font("맑은 고딕", 18f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Location = new Point(0, 20),
-            Size = new Size(320, 50)
-        };
-        Controls.Add(title);
-
-        AddButton("대전", 90, OnMatch);
-        AddButton("전적 보기", 145, OnRecords);
-        AddButton("카드 도감", 200, (_, _) => { using var book = new CardBookForm(records); book.ShowDialog(this); });
-        AddButton("종료", 255, (_, _) => Close());
+        AddButton("대전", 196, OnMatch, primary: true);
+        AddButton("전적 보기", 256, OnRecords);
+        AddButton("카드 도감", 316, (_, _) => { using var book = new CardBookForm(records); book.ShowDialog(this); });
+        AddButton("종료", 376, (_, _) => Close());
     }
 
-    private void AddButton(string text, int top, EventHandler onClick) {
-        var btn = new Button { Text = text, Location = new Point(70, top), Size = new Size(180, 42) };
+    private void AddButton(string text, int top, EventHandler onClick, bool primary = false) {
+        var btn = Theme.MakeButton(text, new Size(240, 46), primary);
+        btn.Location = new Point((ClientSize.Width - btn.Width) / 2, top);
+        btn.Font = Theme.F(11.5f, primary ? FontStyle.Bold : FontStyle.Regular);
         btn.Click += onClick;
         Controls.Add(btn);
+    }
+
+    // 로고(흑·백 돌) + 제목 + 부제 + 아래쪽 팀 이름
+    protected override void OnPaint(PaintEventArgs e) {
+        base.OnPaint(e);
+        var g = e.Graphics;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+        float cx = ClientSize.Width / 2f;
+        Theme.DrawStone(g, new RectangleF(cx - 46, 34, 52, 52), IsOnStone.Black);
+        Theme.DrawStone(g, new RectangleF(cx - 6, 34, 52, 52), IsOnStone.White);
+        using (var spark = new SolidBrush(Theme.Accent)) {
+            PointF c = new(cx + 44, 34);
+            g.FillPolygon(spark, new[] {
+                new PointF(c.X, c.Y - 11), new PointF(c.X + 3, c.Y - 3), new PointF(c.X + 11, c.Y),
+                new PointF(c.X + 3, c.Y + 3), new PointF(c.X, c.Y + 11), new PointF(c.X - 3, c.Y + 3),
+                new PointF(c.X - 11, c.Y), new PointF(c.X - 3, c.Y - 3)
+            });
+        }
+
+        var center = new StringFormat { Alignment = StringAlignment.Center };
+        using (var tf = Theme.F(22f, FontStyle.Bold))
+        using (var tb = new SolidBrush(Theme.Text))
+            g.DrawString("초능력 오셀로", tf, tb, new RectangleF(0, 100, ClientSize.Width, 44), center);
+        using (var sf = Theme.F(10f))
+        using (var sb = new SolidBrush(Theme.SubText))
+            g.DrawString("초능력 패로 판을 뒤집는 점수제 오셀로", sf, sb, new RectangleF(0, 146, ClientSize.Width, 24), center);
+        using (var ff = Theme.F(8.5f))
+        using (var fb = new SolidBrush(Theme.Dim))
+            g.DrawString("소프트웨어 프로젝트 · 팀 리턴즈", ff, fb, new RectangleF(0, ClientSize.Height - 30, ClientSize.Width, 20), center);
     }
 
     // 전적 DB가 없으면 안내만 (설계서 2.5)

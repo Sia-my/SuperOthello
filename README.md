@@ -32,7 +32,8 @@ DB를 열 수 없으면 안내만 띄우고 게임은 그대로 실행됩니다 
    1. (선택) 손패에서 **카드 클릭** → 다시 누르면 선택 취소
    2. 대상이 필요한 카드면 강조된 칸 중 **대상 칸 클릭**
    3. 점으로 표시된 **착수 칸 클릭** (카드를 쓴 결과 둘 곳이 없으면 카드 사용 후 자동 패스)
-   - 둘 곳이 없으면 자동 패스, 손패에 마우스를 올리면 효과 설명 툴팁
+   - 둘 곳이 없으면 자동 패스, 칸에 마우스를 올리면 놓일 돌과 뒤집힐 돌(폭탄은 3×3 범위)을 미리 보여 줌
+   - 상단 바에 지금 해야 할 일이 안내되고, 손패에 마우스를 올리면 효과 설명 툴팁
    - 손패가 3장인데 새 카드를 받으면 4장 중 버릴 1장을 고릅니다.
    - `기권` 또는 창 닫기 → 확인 후 종료 (전적에 기록되지 않음)
 4. **결과 화면**: 뒤집기·카드 점수, 남은 돌 보너스, 최종 점수, 승자 표시 → `다시 하기`(같은 설정) / `메인 메뉴`
@@ -70,9 +71,9 @@ DB를 열 수 없으면 안내만 띄우고 게임은 그대로 실행됩니다 
 | F3 점수제 | 뒤집기 점수, 카드 점수, 종료 보너스, 승패 판정, 행동 로그 |
 | F4 CPU | 난이도 3단계, 깊이 2 알파-베타 탐색, A형 카드 평가, B·C형 조건 규칙, 백그라운드 계산 + 연출 지연 |
 | F5 기록 | ID 자동 등록, 결과 저장(SQLite, 매개변수화 쿼리), 최근 10게임, ID별 통계 |
-| F6 부가 | 착수 가능 칸 점 표시, 최근 착수 하이라이트, 카드 도감·손패 툴팁 |
+| F6 부가 | 착수 가능 칸 점 표시, 최근 착수 하이라이트, 카드 도감·손패 툴팁, 뒤집힐 돌 미리보기 |
 
-미구현: F6-4 뒤집힐 돌 미리보기(선택 항목)
+F1~F6의 필수·권장·선택 항목을 모두 구현했습니다.
 
 ## 폴더 구조
 
@@ -87,5 +88,6 @@ Othello.Core/          UI에 의존하지 않는 게임 로직 (클래스 라이
   Cpu/                 CPUPlayer, Evaluator, EvalResult, StabilityLogic, WeightTables, CpuCardLogic, CpuSimLogic
   Records/             RecordRepository(SQLite), GameRecord, PlayerStats
 Othello.Tests/         MSTest 단위 테스트 (Core, Card, Cpu, Record, PlayerId)
-SuperOthello/          WinForms 화면 (MainForm, MatchSetupForm, GameForm, BoardControl, ResultForm, RecordForm, CardBookForm)
+SuperOthello/          WinForms 화면 (MainForm, MatchSetupForm, GameForm, ResultForm, RecordForm, CardBookForm)
+                       + 직접 그리는 컨트롤 (BoardControl, PlayerPanel, CardTile, TurnBar, LogView) · 공용 테마 Theme
 ```

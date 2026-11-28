@@ -59,7 +59,7 @@ namespace Othello.Core.Cards {
             if (mine > 0)
                 ScoreLogic.OnCard(data, user, -mine);
 
-            return $"({row},{col}) 중심 폭탄: {removed}개 제거 (-{mine}점)";
+            return $"({row},{col}) 중심 폭탄: {removed}개 제거" + (mine > 0 ? $" (-{mine}점)" : "");   // 내 돌을 안 지웠으면 점수 생략
         }
     }
 }
